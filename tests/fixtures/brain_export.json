@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "records": [
+    {"alpha_id": "synthetic-A", "expression": "rank(close)", "settings": {"delay": 1}, "checks": [{"result": "PASS"}]},
+    {"alpha_id": "synthetic-A", "expression": "rank(close)", "settings": {"delay": 1}, "checks": [{"result": "PASS"}]},
+    {"alpha_id": "synthetic-B", "expression": "group_rank(vector_neut(volume), industry)", "checks": [{"result": "FAIL"}]}
+  ],
+  "sync_scope_complete": false,
+  "search_history_complete": false,
+  "source": {"kind": "synthetic_export"}
+}

@@ -16,8 +16,6 @@ from .contracts import STAGE_REQUIRED_FIELDS, validate_config
 
 
 FUTURE_COMMANDS = {
-    "sync-brain": (("--config",),),
-    "import-brain": (("--input",),),
     "validate": (("--stage",), ("--protocol",)),
     "freeze": (("--stage",), ("--config",)),
     "signal": (("--release",), ("--mode",)),
@@ -55,6 +53,21 @@ def _parser() -> argparse.ArgumentParser:
         )
         for option in options:
             command.add_argument(*option, required=True)
+    importer = subparsers.add_parser("import-brain", help="Import local BRAIN exports losslessly.")
+    importer.add_argument("--input", required=True, action="append", type=Path)
+    importer.add_argument("--output", required=True, type=Path)
+    importer.add_argument("--field-catalog", type=Path)
+    inspector = subparsers.add_parser("inspect-library", help="Build expression dependency metadata.")
+    inspector.add_argument("--registry", required=True, type=Path)
+    inspector.add_argument("--field-catalog", type=Path)
+    inspector.add_argument("--output", required=True, type=Path)
+    login = subparsers.add_parser("login-brain", help="Authenticate interactively without echoing credentials.")
+    login.add_argument("--session-file", required=True, type=Path)
+    sync = subparsers.add_parser("sync-brain", help="Synchronize allowlisted read-only Alpha metadata.")
+    sync.add_argument("--session-file", required=True, type=Path)
+    sync.add_argument("--output", required=True, type=Path)
+    sync.add_argument("--max-pages", type=int)
+    sync.add_argument("--page-size", type=int, default=100)
     return parser
 
 
@@ -167,6 +180,26 @@ def main(argv: Sequence[str] | None = None) -> int:
             }
         _emit(payload)
         return 0 if payload["status"] == "PASS" else 1
+    if args.command == "import-brain":
+        from .registry import import_alpha_files
+        _emit(import_alpha_files(args.input, args.output, args.field_catalog))
+        return 0
+    if args.command == "inspect-library":
+        from .registry import inspect_registry
+        _emit(inspect_registry(args.registry, args.output, args.field_catalog))
+        return 0
+    if args.command == "login-brain":
+        from .brain_sync import BrainClient, login_interactive
+        _emit(login_interactive(BrainClient(), args.session_file))
+        return 0
+    if args.command == "sync-brain":
+        from .brain_sync import BrainClient
+        client = BrainClient()
+        session = json.loads(args.session_file.read_text(encoding="utf-8"))
+        if session.get("cookie"):
+            client.transport.headers.update({"Cookie": session["cookie"]})
+        _emit(client.sync_library(args.output, args.page_size, args.max_pages))
+        return 0
     _emit({"command": args.command, "status": "NOT_IMPLEMENTED"})
     return 3
 
