@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+.pytest_cache/
+*.egg-info/
+private/
+runs/
+registry/
+.superpowers/
+.env
+credential*
+*cookie*
+.DS_Store
