@@ -89,8 +89,8 @@ class BrainClient:
         capability = self._request("GET", "/users/self/alphas", params={"limit": 1}, headers={"Cookie": cookie_header_value})
         try:
             capability_payload = capability.json()
-        except Exception as exc:
-            raise BrainSyncError("AUTH_METADATA_INVALID") from exc
+        except Exception:
+            capability_payload = None
         if _action_required(capability_payload):
             raise AuthActionRequired("AUTH_ACTION_REQUIRED")
         if capability.status_code == 401:

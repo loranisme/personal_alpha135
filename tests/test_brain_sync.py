@@ -10,6 +10,7 @@ from us_equity_alpha.brain_sync import (
     AuthActionRequired,
     AuthPermissionDenied,
     BrainClient,
+    BrainSyncError,
     PageSyncError,
     login_interactive,
 )
@@ -385,6 +386,27 @@ def test_plain_capability_403_is_permission_denied(tmp_path):
         BrainClient(transport=transport).authenticate("user@example.test", "pw", tmp_path / "session.json")
     assert str(error.value) == "AUTH_PERMISSION_DENIED"
     assert "must never appear" not in str(error.value)
+    assert not (tmp_path / "session.json").exists()
+
+
+
+@pytest.mark.parametrize("status,exception,message", [
+    (403, AuthPermissionDenied, "AUTH_PERMISSION_DENIED"),
+    (401, BrainSyncError, "AUTH_FAILED"),
+    (200, BrainSyncError, "AUTH_METADATA_INVALID"),
+])
+@pytest.mark.parametrize("body", ["", "<html>private challengeRequired response</html>"])
+def test_non_json_capability_preserves_status_without_body_leakage(tmp_path, status, exception, message, body):
+    transport = Transport([
+        Response(200, {"user": {"id": "synthetic"}}, headers={"Set-Cookie": "session=test"}),
+        Response(status, ValueError(body)),
+    ])
+    with pytest.raises(exception) as error:
+        BrainClient(transport=transport).authenticate("user@example.test", "pw", tmp_path / "session.json")
+    assert type(error.value) is exception
+    assert str(error.value) == message
+    assert error.value.__cause__ is None
+    assert error.value.__context__ is None
     assert not (tmp_path / "session.json").exists()
 
 
