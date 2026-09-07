@@ -1,5 +1,11 @@
 # Phase 1 implementation — T0 to T3 only
 
+Implementation status as of 2026-09-07: T0 complete; T1 current-library sync
+complete for the API-declared 886 records, while search-history completeness
+remains unknown; T2 mapping complete but Alpaca/Tiingo market samples are
+`NOT_RUN_AUTH_REQUIRED`; T3 minimal direct-candidate subset complete for five
+Alpha definitions with synthetic execution only and numeric parity unverified.
+
 Authority: ../2026-09-06-us-equity-alpha-implementation-plan.md (v1.1). User requests real Alpha mapping and source selection first.
 
 Global constraints: Read-only BRAIN metadata; no simulation, submission, deletion, trading, PnL fetching or performance-driven factor selection. Credentials stay user-controlled and never printed/logged/committed. All private Alpha expressions, IDs, original snapshots, field catalogs and account data stay under private/ or runs/ (Git ignored). Synthetic fixtures prove engineering only. Missing definitions or data remain UNKNOWN/PARTIAL; no provider can be declared complete from field names alone. Historical PIT, revisions, universe, corporate actions and execution quote coverage must be distinguished. No T4-T8 strategy validation or protected holdout access this phase. Python 3.12, local venv, pandas/NumPy/SciPy/requests/pytest/Parquet/openpyxl plus Alphalens Reloaded/vectorbt compatibility probe. First write behavioral failing tests then minimal implementation.

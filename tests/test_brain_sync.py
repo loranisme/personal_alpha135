@@ -122,6 +122,68 @@ def test_expression_dependencies_are_parsed_without_execution():
     assert report["safe"] is True
 
 
+def test_live_regular_object_exposes_code_for_dependency_parsing(tmp_path):
+    source = tmp_path / "live-shape.json"
+    source.write_text(json.dumps({
+        "records": [{
+            "id": "synthetic-live-id",
+            "regular": {"code": "rank(close)", "operatorCount": 1},
+            "settings": {"neutralization": "INDUSTRY"},
+        }],
+        "sync_scope_complete": True,
+        "search_history_complete": False,
+    }))
+    catalog = tmp_path / "fields.json"
+    catalog.write_text(json.dumps({"results": [{"id": "close", "type": "MATRIX"}]}))
+
+    result = import_alpha_files([source], tmp_path / "out", catalog)
+
+    row = json.loads((tmp_path / "out" / "alpha_registry.json").read_text())["records"][0]
+    assert result["unique_alpha_count"] == 1
+    assert row["dependencies"]["fields"] == [{"identifier": "close", "type": "MATRIX"}]
+    assert row["dependencies"]["operators"] == ["rank"]
+    assert row["dependencies"]["safe"] is True
+
+
+def test_brain_comments_lowercase_booleans_and_observed_operators_parse_safely():
+    catalog = {"close": {"type": "MATRIX"}, "volume": {"type": "MATRIX"}}
+    expression = """/* research note with an apostrophe: stock's */
+x = ts_delay(close, 1);
+hump(ts_scale(x, 20), hump=0.01) + if_else(volume > 0, sign(x), true)
+"""
+
+    report = analyze_expression(expression, catalog)
+
+    assert report["fields"] == [
+        {"identifier": "close", "type": "MATRIX"},
+        {"identifier": "volume", "type": "MATRIX"},
+    ]
+    assert report["unknown_identifiers"] == []
+    assert report["unknown_operators"] == []
+    assert report["safe"] is True
+
+
+def test_brain_multiline_arithmetic_is_whitespace_not_a_statement_boundary():
+    catalog = {"close": {"type": "MATRIX"}, "volume": {"type": "MATRIX"}}
+    report = analyze_expression("rank(close)\n  * rank(volume)", catalog)
+
+    assert report["fields"] == [
+        {"identifier": "close", "type": "MATRIX"},
+        {"identifier": "volume", "type": "MATRIX"},
+    ]
+    assert report["unsupported_syntax"] == []
+    assert report["safe"] is True
+
+
+def test_brain_multiline_arithmetic_with_trailing_operator_is_parsed():
+    catalog = {"close": {"type": "MATRIX"}, "volume": {"type": "MATRIX"}}
+    report = analyze_expression("rank(close) *\nrank(volume)", catalog)
+
+    assert [field["identifier"] for field in report["fields"]] == ["close", "volume"]
+    assert report["unsupported_syntax"] == []
+    assert report["safe"] is True
+
+
 @pytest.mark.parametrize("name", ["eval", "exec", "open", "__import__"])
 def test_python_execution_and_io_calls_are_never_safe(name):
     report = analyze_expression(f"{name}('synthetic')", {})

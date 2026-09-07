@@ -1,0 +1,31 @@
+{
+  "access_date": "2026-09-07",
+  "evidence_status": "DOCUMENTATION_ONLY_UNTIL_AUTHENTICATED_SAMPLE_PROBE",
+  "providers": {
+    "tiingo": {
+      "role": "recommended_phase1_eod_and_fundamentals_candidate",
+      "credentials": ["TIINGO_API_KEY"],
+      "sources": [
+        "https://www.tiingo.com/documentation/end-of-day",
+        "https://www.tiingo.com/documentation/fundamentals"
+      ]
+    },
+    "sec": {
+      "role": "filing_provenance_and_revision_cross_check",
+      "credentials": [],
+      "sources": [
+        "https://www.sec.gov/search-filings/edgar-application-programming-interfaces"
+      ]
+    },
+    "alpaca": {
+      "role": "optional_future_execution_quote_and_market_data_layer",
+      "credentials": ["APCA_API_KEY_ID", "APCA_API_SECRET_KEY"],
+      "sources": [
+        "https://docs.alpaca.markets/us/docs/historical-stock-data-1",
+        "https://docs.alpaca.markets/us/docs/historical-option-data",
+        "https://docs.alpaca.markets/us/docs/real-time-stock-pricing-data"
+      ]
+    }
+  },
+  "certified_complete_provider": null
+}

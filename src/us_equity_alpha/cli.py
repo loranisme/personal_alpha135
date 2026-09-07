@@ -68,6 +68,13 @@ def _parser() -> argparse.ArgumentParser:
     sync.add_argument("--output", required=True, type=Path)
     sync.add_argument("--max-pages", type=int)
     sync.add_argument("--page-size", type=int, default=100)
+    mapper = subparsers.add_parser("map-library", help="Map BRAIN dependencies to documented provider candidates.")
+    mapper.add_argument("--registry", required=True, type=Path)
+    mapper.add_argument("--field-catalog", required=True, type=Path)
+    mapper.add_argument("--output", required=True, type=Path)
+    probe = subparsers.add_parser("probe-data", help="Run one finite authenticated provider sample.")
+    probe.add_argument("--provider", required=True, choices=("alpaca", "tiingo"))
+    probe.add_argument("--output", required=True, type=Path)
     return parser
 
 
@@ -209,6 +216,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         client.authenticated_contract_verified = True
         _emit(client.sync_library(args.output, args.page_size, args.max_pages))
         return 0
+    if args.command == "map-library":
+        from .mapping import map_library
+        _emit(map_library(args.registry, args.field_catalog, args.output))
+        return 0
+    if args.command == "probe-data":
+        from .probes import probe_data
+        payload = probe_data(args.provider, args.output)
+        _emit(payload)
+        return 0 if payload["status"] == "PASS" else 2
     _emit({"command": args.command, "status": "NOT_IMPLEMENTED"})
     return 3
 

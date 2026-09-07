@@ -6,6 +6,7 @@ import ast
 import csv
 import hashlib
 import json
+import re
 from collections import Counter, defaultdict
 from collections.abc import Iterable, Mapping
 from pathlib import Path
@@ -15,11 +16,13 @@ from typing import Any
 ALLOWED_FACTOR_OPERATORS = frozenset({
     "abs", "add", "bucket", "clip", "densify", "divide", "group_backfill",
     "group_mean", "group_neutralize", "group_rank", "group_scale", "group_zscore",
-    "if_else", "log", "max", "min", "multiply", "rank", "reverse", "scale",
+    "days_from_last_change", "hump", "if_else", "log", "max", "min",
+    "multiply", "rank", "reverse", "scale", "sign",
     "signed_power", "subtract", "trade_when", "ts_arg_max", "ts_arg_min",
     "ts_backfill", "ts_corr", "ts_covariance", "ts_decay_linear", "ts_delta",
     "ts_max", "ts_mean", "ts_min", "ts_product", "ts_rank", "ts_std_dev",
-    "ts_sum", "ts_zscore", "vector_neut", "winsorize", "zscore",
+    "ts_delay", "ts_regression", "ts_scale", "ts_step", "ts_sum", "ts_zscore",
+    "vector_neut", "winsorize", "zscore",
 })
 
 ALLOWED_DSL_NODES = (
@@ -48,6 +51,10 @@ def _expression(record: Mapping[str, Any]) -> str | None:
         value = record.get(key)
         if isinstance(value, str) and value.strip():
             return value
+        if key == "regular" and isinstance(value, Mapping):
+            code = value.get("code")
+            if isinstance(code, str) and code.strip():
+                return code
     return None
 
 
@@ -124,18 +131,26 @@ def analyze_expression(expression: str | None, field_catalog: Mapping[str, Any] 
     if not expression:
         report["unsupported_syntax"] = ["MISSING_EXPRESSION"]
         return report
+    without_comments = re.sub(r"/\*.*?\*/", "", expression, flags=re.DOTALL)
+    normalized_expression = re.sub(
+        r"\n[ \t]*(?=[+\-*/])", " ", without_comments
+    ).strip()
     try:
-        tree = ast.parse(expression, mode="exec")
+        tree = ast.parse(normalized_expression, mode="exec")
     except (SyntaxError, ValueError):
-        report["unsupported_syntax"] = ["PARSE_ERROR"]
-        return report
+        whitespace_normalized = " ".join(without_comments.split())
+        try:
+            tree = ast.parse(whitespace_normalized, mode="exec")
+        except (SyntaxError, ValueError):
+            report["unsupported_syntax"] = ["PARSE_ERROR"]
+            return report
     visitor = _DependencyVisitor()
     visitor.visit(tree)
     for node in ast.walk(tree):
         if not isinstance(node, ALLOWED_DSL_NODES):
             visitor.unsupported.add(type(node).__name__)
     report["parsed_without_execution"] = True
-    keywords = {"True", "False", "None"}
+    keywords = {"True", "False", "None", "true", "false", "nan", "NaN"}
     field_names = sorted(name for name in visitor.loaded if name in catalog)
     locals_used = sorted(name for name in visitor.loaded if name in visitor.assigned)
     unknown = sorted(visitor.loaded - visitor.called - visitor.assigned - set(field_names) - keywords)
