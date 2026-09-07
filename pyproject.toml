@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "us-equity-alpha"
+version = "0.1.0"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "alphalens-reloaded",
+  "exchange-calendars",
+  "numpy",
+  "openpyxl",
+  "pandas",
+  "pyarrow",
+  "plotly<6",
+  "requests",
+  "scipy",
+  "vectorbt",
+]
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[project.scripts]
+us-equity-alpha = "us_equity_alpha.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+addopts = "-ra"
+testpaths = ["tests"]
