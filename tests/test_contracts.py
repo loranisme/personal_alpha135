@@ -1,6 +1,8 @@
 import json
 
-from us_equity_alpha.cli import main
+import pytest
+
+from us_equity_alpha.cli import evaluate_environment_checks, main
 from us_equity_alpha.contracts import validate_config
 
 
@@ -43,3 +45,39 @@ def test_future_command_is_explicitly_not_implemented(capsys):
     payload = json.loads(capsys.readouterr().out)
     assert exit_code == 3
     assert payload == {"command": "signal", "status": "NOT_IMPLEMENTED"}
+
+
+@pytest.mark.parametrize("root", [[], None, "config", 3])
+def test_preflight_blocks_non_object_json_roots(tmp_path, capsys, root):
+    config = tmp_path / "config.json"
+    config.write_text(json.dumps(root), encoding="utf-8")
+
+    exit_code = main(["preflight", "--config", str(config), "--stage", "metadata"])
+
+    payload = json.loads(capsys.readouterr().out)
+    assert exit_code == 2
+    assert payload["status"] == "BLOCKED_CONFIG"
+    assert payload["errors"] == ["CONFIG_ROOT_NOT_OBJECT"]
+
+
+def test_environment_status_fails_when_a_required_check_is_false():
+    checks = {
+        "alphalens_spearman_ic": True,
+        "vectorbt_holding_simulation": True,
+        "parquet_roundtrip": False,
+        "xlsx_roundtrip": True,
+        "scipy_import": True,
+    }
+
+    assert evaluate_environment_checks(checks) == "FAIL"
+
+
+def test_environment_exception_returns_safe_failure_json(tmp_path, capsys):
+    # A directory cannot be used as the JSON output file; this exercises the
+    # real filesystem failure boundary without replacing production behavior.
+    exit_code = main(["environment-check", "--output", str(tmp_path)])
+
+    payload = json.loads(capsys.readouterr().out)
+    assert exit_code == 1
+    assert payload["status"] == "FAIL"
+    assert payload["errors"] == ["ENVIRONMENT_CHECK_ERROR"]

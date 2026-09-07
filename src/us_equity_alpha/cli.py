@@ -5,8 +5,10 @@ from __future__ import annotations
 import argparse
 import importlib.metadata
 import json
+import math
 import platform
 import sys
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Sequence
 
@@ -60,6 +62,11 @@ def _emit(payload: dict) -> None:
     print(json.dumps(payload, indent=2, sort_keys=True))
 
 
+def evaluate_environment_checks(checks: Mapping[str, bool]) -> str:
+    """Return PASS only when every required compatibility assertion passes."""
+    return "PASS" if checks and all(checks.values()) else "FAIL"
+
+
 def _environment_check(output: Path) -> dict:
     import numpy as np
     import pandas as pd
@@ -85,12 +92,14 @@ def _environment_check(output: Path) -> dict:
     frame = pd.DataFrame({"security_id": ["S1"], "value": [1.25]})
     parquet_path = scratch.with_suffix(".parquet")
     excel_path = scratch.with_suffix(".xlsx")
-    frame.to_parquet(parquet_path, index=False)
-    frame.to_excel(excel_path, index=False)
-    parquet_ok = pd.read_parquet(parquet_path).equals(frame)
-    excel_ok = pd.read_excel(excel_path).equals(frame)
-    parquet_path.unlink()
-    excel_path.unlink()
+    try:
+        frame.to_parquet(parquet_path, index=False)
+        frame.to_excel(excel_path, index=False)
+        parquet_ok = pd.read_parquet(parquet_path).equals(frame)
+        excel_ok = pd.read_excel(excel_path).equals(frame)
+    finally:
+        parquet_path.unlink(missing_ok=True)
+        excel_path.unlink(missing_ok=True)
 
     packages = {}
     for name in (
@@ -98,18 +107,33 @@ def _environment_check(output: Path) -> dict:
         "pandas", "pyarrow", "requests", "scipy", "vectorbt",
     ):
         packages[name] = importlib.metadata.version(name)
+    ic_value = float(ic.iloc[0])
+    ic_rows = int(ic.notna().sum())
+    final_value = float(portfolio.final_value())
+    observations = {
+        "alphalens_spearman_ic": ic_value,
+        "alphalens_rows": ic_rows,
+        "vectorbt_final_value": final_value,
+    }
+    checks = {
+        "alphalens_spearman_ic": (
+            ic_rows == len(dates)
+            and math.isfinite(ic_value)
+            and bool(np.allclose(ic.to_numpy(), 1.0))
+        ),
+        "vectorbt_holding_simulation": (
+            math.isfinite(final_value) and math.isclose(final_value, 1020.0)
+        ),
+        "parquet_roundtrip": bool(parquet_ok),
+        "xlsx_roundtrip": bool(excel_ok),
+        "scipy_import": bool(scipy.__version__),
+    }
     payload = {
-        "status": "PASS",
+        "status": evaluate_environment_checks(checks),
         "python": platform.python_version(),
         "packages": packages,
-        "checks": {
-            "alphalens_spearman_ic": float(ic.iloc[0]),
-            "alphalens_rows": int(ic.notna().sum()),
-            "vectorbt_final_value": float(portfolio.final_value()),
-            "parquet_roundtrip": parquet_ok,
-            "xlsx_roundtrip": excel_ok,
-            "scipy_import": bool(scipy.__version__),
-        },
+        "checks": checks,
+        "observations": observations,
         "network_market_data_requests": 0,
     }
     output.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -124,13 +148,25 @@ def main(argv: Sequence[str] | None = None) -> int:
         except (OSError, json.JSONDecodeError) as exc:
             _emit({"status": "BLOCKED_CONFIG", "errors": ["CONFIG_READ_ERROR"], "detail": str(exc)})
             return 2
+        if not isinstance(config, Mapping):
+            _emit({"status": "BLOCKED_CONFIG", "errors": ["CONFIG_ROOT_NOT_OBJECT"]})
+            return 2
         errors = validate_config(config, args.stage)
         payload = {"stage": args.stage, "status": errors[0] if errors else "PASS", "errors": errors}
         _emit(payload)
         return 2 if errors else 0
     if args.command == "environment-check":
-        _emit(_environment_check(args.output))
-        return 0
+        try:
+            payload = _environment_check(args.output)
+        except Exception as exc:
+            payload = {
+                "status": "FAIL",
+                "errors": ["ENVIRONMENT_CHECK_ERROR"],
+                "error_type": type(exc).__name__,
+                "network_market_data_requests": 0,
+            }
+        _emit(payload)
+        return 0 if payload["status"] == "PASS" else 1
     _emit({"command": args.command, "status": "NOT_IMPLEMENTED"})
     return 3
 

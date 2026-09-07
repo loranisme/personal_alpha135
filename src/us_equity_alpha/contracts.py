@@ -47,6 +47,8 @@ def _code(field: str) -> str:
 
 def validate_config(config: Mapping[str, Any], stage: str) -> list[str]:
     """Return stable blocking codes for unresolved inputs at *stage*."""
+    if not isinstance(config, Mapping):
+        return ["BLOCKED_CONFIG", "CONFIG_ROOT_NOT_OBJECT"]
     required = STAGE_REQUIRED_FIELDS.get(stage)
     if required is None:
         return ["UNKNOWN_STAGE"]
