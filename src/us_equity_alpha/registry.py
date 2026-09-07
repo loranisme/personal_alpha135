@@ -12,6 +12,16 @@ from pathlib import Path
 from typing import Any
 
 
+ALLOWED_FACTOR_OPERATORS = frozenset({
+    "abs", "add", "bucket", "clip", "densify", "divide", "group_backfill",
+    "group_mean", "group_neutralize", "group_rank", "group_scale", "group_zscore",
+    "if_else", "log", "max", "min", "multiply", "rank", "reverse", "scale",
+    "signed_power", "subtract", "trade_when", "ts_arg_max", "ts_arg_min",
+    "ts_backfill", "ts_corr", "ts_covariance", "ts_decay_linear", "ts_delta",
+    "ts_max", "ts_mean", "ts_min", "ts_product", "ts_rank", "ts_std_dev",
+    "ts_sum", "ts_zscore", "vector_neut", "winsorize", "zscore",
+})
+
 def _canonical(value: Any) -> str:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
 
@@ -92,7 +102,8 @@ def analyze_expression(expression: str | None, field_catalog: Mapping[str, Any] 
     catalog = field_catalog or {}
     report: dict[str, Any] = {
         "fields": [], "operators": [], "local_variables": [],
-        "unknown_identifiers": [], "unsupported_syntax": [], "safe": False,
+        "unknown_identifiers": [], "unknown_operators": [], "unsupported_syntax": [],
+        "parsed_without_execution": False, "safe": False,
     }
     if not expression:
         report["unsupported_syntax"] = ["MISSING_EXPRESSION"]
@@ -104,17 +115,23 @@ def analyze_expression(expression: str | None, field_catalog: Mapping[str, Any] 
         return report
     visitor = _DependencyVisitor()
     visitor.visit(tree)
+    report["parsed_without_execution"] = True
     keywords = {"True", "False", "None"}
     field_names = sorted(name for name in visitor.loaded if name in catalog)
     locals_used = sorted(name for name in visitor.loaded if name in visitor.assigned)
     unknown = sorted(visitor.loaded - visitor.called - visitor.assigned - set(field_names) - keywords)
+    unknown_operators = sorted(visitor.called - ALLOWED_FACTOR_OPERATORS)
+    unsupported = set(visitor.unsupported)
+    if unknown_operators:
+        unsupported.add("UNSUPPORTED_OPERATOR")
     report.update({
         "fields": [{"identifier": name, "type": str(catalog[name].get("type", "UNKNOWN")).upper() if isinstance(catalog[name], Mapping) else "UNKNOWN"} for name in field_names],
         "operators": sorted(visitor.called),
+        "unknown_operators": unknown_operators,
         "local_variables": sorted(visitor.assigned | set(locals_used)),
         "unknown_identifiers": unknown,
-        "unsupported_syntax": sorted(visitor.unsupported),
-        "safe": not visitor.unsupported,
+        "unsupported_syntax": sorted(unsupported),
+        "safe": not unsupported,
     })
     return report
 
@@ -200,16 +217,20 @@ def import_alpha_files(files: Iterable[Path | str], output_dir: Path | str, fiel
             definitions[row["alpha_id"]].add(row["definition_hash"])
     conflicts = {alpha_id for alpha_id, hashes in definitions.items() if len(hashes) > 1}
     for row in rows:
-        if row["alpha_id"] in conflicts or not row["dependencies"]["safe"]:
+        if row["alpha_id"] in conflicts or not row["dependencies"]["safe"] or row["dependencies"]["unknown_identifiers"]:
             row["certification_eligible"] = False
     summary = {
         "status": "LOCAL_SNAPSHOT_PARTIAL" if not scope_values or not all(scope_values) else "COMPLETE",
         "schema_version": 1,
         "record_count": len(rows),
+        "actual_id_record_count": sum(row["alpha_id"] is not None for row in rows),
         "unique_alpha_count": len(id_counts),
         "local_experiment_count": sum(row["alpha_id"] is None for row in rows),
         "duplicate_record_count": sum(id_counts.values()) - len(id_counts),
-        "platform_failed_count": sum(row["platform_failed"] for row in rows),
+        "platform_failed_actual_id_record_count": sum(row["alpha_id"] is not None and row["platform_failed"] for row in rows),
+        "explicit_failed_local_experiment_count": sum(row["alpha_id"] is None and row["platform_failed"] for row in rows),
+        "platform_failed_count": sum(row["alpha_id"] is not None and row["platform_failed"] for row in rows),
+        "all_raw_explicit_failed_record_count": sum(row["platform_failed"] for row in rows),
         "missing_settings_actual_id_count": sum(row["alpha_id"] is not None and row["settings"] is None for row in rows),
         "definition_conflict_alpha_count": len(conflicts),
         "sync_scope_complete": bool(scope_values) and all(scope_values),
@@ -230,6 +251,17 @@ def import_alpha_files(files: Iterable[Path | str], output_dir: Path | str, fiel
             for field in record["fields"]:
                 writer.writerow([record["record_index"], record["record_ref"], field["identifier"], field["type"]])
     (destination / "completeness_summary.json").write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    evidence = {
+        "schema_version": 1,
+        "queried_endpoint": None,
+        "public_documentation_status": "UNVERIFIED_IN_THIS_RUN",
+        "authenticated_contract_verified": False,
+        "observed_pagination_fields": [],
+        "observed_pagination_scheme": "not_observed",
+        "source_kind": "local_file_import",
+        "contains_response_body_or_secrets": False,
+    }
+    (destination / "evidence.json").write_text(json.dumps(evidence, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return summary
 
 

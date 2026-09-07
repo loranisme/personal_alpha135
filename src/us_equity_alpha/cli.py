@@ -194,10 +194,19 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
     if args.command == "sync-brain":
         from .brain_sync import BrainClient
+        try:
+            session = json.loads(args.session_file.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            session = None
+        cookies = session.get("cookies") if isinstance(session, Mapping) else None
+        valid_cookies = isinstance(cookies, Mapping) and bool(cookies) and all(isinstance(key, str) and key and isinstance(value, str) and value for key, value in cookies.items())
+        capability_verified = isinstance(session, Mapping) and session.get("metadata_capability_verified") is True
+        if not valid_cookies or not capability_verified:
+            _emit({"status": "AUTH_SESSION_REQUIRED", "errors": ["INVALID_SESSION"]})
+            return 2
         client = BrainClient()
-        session = json.loads(args.session_file.read_text(encoding="utf-8"))
-        if session.get("cookie"):
-            client.transport.headers.update({"Cookie": session["cookie"]})
+        client.transport.cookies.update(dict(cookies))
+        client.authenticated_contract_verified = True
         _emit(client.sync_library(args.output, args.page_size, args.max_pages))
         return 0
     _emit({"command": args.command, "status": "NOT_IMPLEMENTED"})
