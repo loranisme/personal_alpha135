@@ -203,6 +203,28 @@ def map_field(field: Mapping[str, Any]) -> dict[str, Any]:
         row["availability_rule"] = "UNKNOWN"
         row["blockers"] = ["PROPRIETARY_MODEL_SPEC_UNAVAILABLE"]
 
+    # Concept names and raw inputs are investigation leads, not implemented feeds.
+    row['investigation_candidates'] = {}
+    if dataset in {'fundamental2', 'fundamental6'} or (dataset == 'analyst4' and name in ANALYST_REPORTED) or (dataset == 'pv1' and name == 'sharesout'):
+        row['investigation_candidates'] = dict(row['candidates'])
+        row['candidates'] = {key: None for key in row['candidates']}
+        row['mapping_class'] = UNKNOWN
+        row['local_replacement_id'] = None
+        row['blockers'] = ['EXACT_PROVIDER_FIELD_NOT_VERIFIED', 'PIT_AND_UNIT_MAPPING_REQUIRED']
+    if dataset in {'option8', 'option9'} and not name.startswith('historical_volatility_'):
+        row['investigation_candidates'] = dict(row['candidates'])
+        row['candidates']['alpaca'] = None
+        row['mapping_class'] = SPECIALIST
+        row['local_replacement_id'] = None
+        row['blockers'] = ['OPTION_ANALYTICS_SPEC_AND_HISTORY_REQUIRED']
+    if dataset == 'news12' and name not in {'atr', 'news_atr14', 'news_atr_ratio'} and row['mapping_class'] == PROXY:
+        row['investigation_candidates'] = dict(row['candidates'])
+        row['candidates'] = {key: None for key in row['candidates']}
+        row['mapping_class'] = UNKNOWN
+        row['blockers'].append('EVENT_IDENTITY_AND_INPUT_FEED_UNRESOLVED')
+    if typ == 'GROUP':
+        row['investigation_candidates'] = dict(row['candidates'])
+        row['candidates'] = {key: None for key in row['candidates']}
     if typ == "VECTOR":
         row["blockers"].append("VECTOR_AGGREGATION_UNKNOWN")
     if typ == "GROUP" and "GROUP_TAXONOMY_IDENTITY_UNVERIFIED" not in row["blockers"]:
@@ -215,7 +237,7 @@ def _load_catalog(path: Path | str) -> dict[str, Mapping[str, Any]]:
     if isinstance(payload, list):
         rows = payload
     elif isinstance(payload, Mapping):
-        rows = payload.get("results") or payload.get("fields") or payload.get("dataFields") or []
+        rows = payload.get("results") or payload.get("fields") or payload.get("dataFields") or payload.get('observed_fields') or []
     else:
         rows = []
     return {
@@ -249,7 +271,9 @@ def map_library(registry_path: Path | str, field_catalog: Path | str, output_dir
         for field in (row.get("dependencies") or {}).get("fields", [])
         if isinstance(field, Mapping) and field.get("identifier")
     })
-    mappings = [map_field(catalog.get(name, {"id": name})) for name in used_fields]
+    setting_fields = {str((row.get('settings') or {}).get('neutralization', '')).lower() for row in records} & GROUP_FIELDS
+    used_fields = sorted(set(used_fields) | setting_fields)
+    mappings = [map_field(catalog.get(name, {"id": name, 'dataset': 'pv1' if name in GROUP_FIELDS else 'UNKNOWN', 'type': 'GROUP' if name in GROUP_FIELDS else 'UNKNOWN'})) for name in used_fields]
     by_name = {row["field_id"]: row for row in mappings}
 
     alpha_rows: list[dict[str, Any]] = []
@@ -280,6 +304,7 @@ def map_library(registry_path: Path | str, field_catalog: Path | str, output_dir
         elif neutralization not in {"NONE"}:
             blockers.append("NEUTRALIZATION_SETTING_UNRESOLVED")
         blockers.append("ACTUAL_SAMPLE_PARITY_UNVERIFIED")
+        blockers.extend('SETTING_NOT_IMPLEMENTED:' + key for key in settings if key not in {'delay','decay','neutralization'})
 
         provider_support: dict[str, bool] = {}
         for provider in ("alpaca", "tiingo"):
@@ -360,7 +385,7 @@ def map_library(registry_path: Path | str, field_catalog: Path | str, output_dir
 
 ## 决定
 
-第一阶段最小数据组合采用 **Tiingo EOD + Tiingo Fundamentals（需相应权限）** 作为日频价格、公司行动、日频市值和常见财务报表候选；使用 **SEC EDGAR Company Facts** 保存财报披露和修订证据。行业/子行业使用单独冻结的本地分类代理，必须生成新的本地字段 ID，不能宣称等同于 BRAIN 原分类。
+第一阶段先验证 **Tiingo EOD** 日频价格与公司行动候选；**Tiingo Fundamentals** 暂待 definitions 和真实字段样本确认，不视为已可用的报表来源；使用 **SEC EDGAR Company Facts** 保存财报披露和修订证据。行业/子行业使用单独冻结的本地分类代理，必须生成新的本地字段 ID，不能宣称等同于 BRAIN 原分类。
 
 Alpaca 保留为后续执行报价与可选行情层。它可提供股票 OHLCV/VWAP，且可提供原始期权行情，但当前映射不需要为了第一阶段日频研究同时购买 Alpaca 数据。若进入手工调仓清单的报价校验阶段，再单独验证 feed 权限、bid/ask、时间戳和历史窗口。
 

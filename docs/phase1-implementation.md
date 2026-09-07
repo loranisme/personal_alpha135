@@ -1,3 +1,5 @@
+> **2026-09-07 audit correction:** Phase 1 is PARTIAL. Five definitions executed on synthetic data only; zero real-data or BRAIN-equivalent Alpha conversions are verified. T2 now includes settings-derived sector: 203 dependencies (202 expression fields), with 8 direct candidates, 25 proxies, 109 specialist requirements and 61 unknown. Previous counts below are historical and superseded. Full BRAIN settings are now rejected by the local evaluator; explicit local variants must record exclusions. See [current audit](../../2026-09-07-alpha-conversion-audit.md) for the current findings.
+
 # Phase 1 implementation — T0 to T3 only
 
 Implementation status as of 2026-09-07: T0 complete; T1 current-library sync

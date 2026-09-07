@@ -2,18 +2,20 @@
   "schema_version": 1,
   "phase": "T0_TO_T3",
   "data_scope": "NARROW_SOURCE_SUPPORTED_MVP",
-  "primary_market_data_candidate": "tiingo_eod",
-  "primary_fundamental_candidate": "tiingo_fundamentals",
+  "primary_market_data_candidate": "tiingo_eod_pending_token",
+  "primary_fundamental_candidate": "UNDECIDED_PENDING_DEFINITIONS_SAMPLE",
   "filing_provenance": "sec_edgar_companyfacts",
   "classification": {
     "status": "UNRESOLVED_OR_LOCAL_PROXY_ONLY",
     "original_taxonomy_equivalence": false
   },
   "alpaca_role": "OPTIONAL_FUTURE_EXECUTION_AND_QUOTE_VALIDATION",
-  "allow_proxy_fields": true,
+  "allow_proxy_fields": false,
   "proxy_id_prefix": "local_proxy__",
   "numeric_parity_required_before_certification": true,
   "complete_library_status": "BLOCKED",
   "performance_selection_allowed_in_t2": false,
-  "validation_holdout_access_allowed_in_t2": false
+  "validation_holdout_access_allowed_in_t2": false,
+  "phase_completion_status": "PARTIAL_REAL_DATA_AND_BRAIN_SETTINGS_UNVERIFIED",
+  "proxy_policy": "EXPLICIT_LOCAL_VARIANT_REQUIRED"
 }

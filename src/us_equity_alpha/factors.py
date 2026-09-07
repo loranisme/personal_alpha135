@@ -100,12 +100,15 @@ def evaluate_factor(
     settings: Mapping[str, Any],
 ) -> pd.DataFrame:
     """Evaluate a frozen subset without Python eval/exec or implicit filling."""
+    extra_settings = set(settings) - {'delay', 'decay', 'neutralization'}
+    if extra_settings:
+        raise UnsupportedExpression('UNIMPLEMENTED_SETTINGS:' + ','.join(sorted(extra_settings)))
     try:
         delay = int(settings["delay"])
         decay = int(settings.get("decay", 0))
     except (KeyError, TypeError, ValueError) as exc:
         raise UnsupportedExpression("INVALID_DELAY_OR_DECAY_SETTING") from exc
-    if delay < 0 or decay < 0:
+    if delay < 0 or decay < 0 or delay != settings['delay'] or decay != settings.get('decay', 0):
         raise UnsupportedExpression("INVALID_DELAY_OR_DECAY_SETTING")
     if str(settings.get("neutralization", "")).upper() != "NONE":
         raise UnsupportedExpression("MVP_NEUTRALIZATION_NOT_SUPPORTED")
