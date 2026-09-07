@@ -22,7 +22,15 @@ ALLOWED_PATHS = ("/authentication", "/users/self/alphas", "/alphas/", "/data-fie
 
 class BrainSyncError(RuntimeError): pass
 class AuthActionRequired(BrainSyncError): pass
+class AuthPermissionDenied(BrainSyncError): pass
 class PageSyncError(BrainSyncError): pass
+
+
+def _action_required(payload: Any) -> bool:
+    return isinstance(payload, dict) and any(
+        payload.get(key) is True
+        for key in ("verificationRequired", "actionRequired", "challengeRequired")
+    )
 
 
 class BrainClient:
@@ -60,8 +68,10 @@ class BrainClient:
             payload = response.json()
         except Exception:
             payload = None
-        if response.status_code in (401, 403) or (isinstance(payload, dict) and any(payload.get(k) for k in ("verificationRequired", "actionRequired"))):
+        if _action_required(payload):
             raise AuthActionRequired("AUTH_ACTION_REQUIRED")
+        if response.status_code in (401, 403):
+            raise BrainSyncError("AUTH_FAILED")
         user = payload.get("user") if isinstance(payload, dict) else None
         valid_shape = isinstance(user, dict) and isinstance(user.get("id"), str) and bool(user["id"].strip())
         if response.status_code >= 400 or not valid_shape:
@@ -77,14 +87,16 @@ class BrainClient:
             raise BrainSyncError("AUTH_SESSION_MISSING")
         cookie_header_value = "; ".join(f"{name}={value}" for name, value in cookies.items())
         capability = self._request("GET", "/users/self/alphas", params={"limit": 1}, headers={"Cookie": cookie_header_value})
-        if capability.status_code in (401, 403):
-            raise AuthActionRequired("AUTH_ACTION_REQUIRED")
         try:
             capability_payload = capability.json()
         except Exception as exc:
             raise BrainSyncError("AUTH_METADATA_INVALID") from exc
-        if isinstance(capability_payload, dict) and any(capability_payload.get(key) for key in ("verificationRequired", "actionRequired")):
+        if _action_required(capability_payload):
             raise AuthActionRequired("AUTH_ACTION_REQUIRED")
+        if capability.status_code == 401:
+            raise BrainSyncError("AUTH_FAILED")
+        if capability.status_code == 403:
+            raise AuthPermissionDenied("AUTH_PERMISSION_DENIED")
         if capability.status_code >= 400 or not isinstance(capability_payload, dict) or not isinstance(capability_payload.get("results"), list):
             raise BrainSyncError("AUTH_METADATA_INVALID")
         target = Path(session_file); target.parent.mkdir(parents=True, exist_ok=True)

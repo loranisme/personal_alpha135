@@ -8,6 +8,7 @@ import pytest
 
 from us_equity_alpha.brain_sync import (
     AuthActionRequired,
+    AuthPermissionDenied,
     BrainClient,
     PageSyncError,
     login_interactive,
@@ -330,10 +331,10 @@ def test_authentication_requires_metadata_capability(tmp_path):
 
 
 @pytest.mark.parametrize("status,payload", [
-    (401, {}),
-    (403, {}),
     (200, {"verificationRequired": True}),
     (200, {"actionRequired": True}),
+    (401, {"challengeRequired": True}),
+    (403, {"verificationRequired": True}),
 ])
 def test_metadata_capability_challenge_requires_user_action(tmp_path, status, payload):
     transport = Transport([
@@ -343,6 +344,47 @@ def test_metadata_capability_challenge_requires_user_action(tmp_path, status, pa
     with pytest.raises(AuthActionRequired) as error:
         BrainClient(transport=transport).authenticate("user@example.test", "pw", tmp_path / "session.json")
     assert str(error.value) == "AUTH_ACTION_REQUIRED"
+    assert not (tmp_path / "session.json").exists()
+
+
+def test_plain_initial_401_is_auth_failed(tmp_path):
+    client = BrainClient(transport=Transport([Response(401, {})]))
+    with pytest.raises(Exception) as error:
+        client.authenticate("user@example.test", "pw", tmp_path / "session.json")
+    assert not isinstance(error.value, AuthActionRequired)
+    assert str(error.value) == "AUTH_FAILED"
+    assert not (tmp_path / "session.json").exists()
+
+
+def test_plain_initial_403_is_auth_failed(tmp_path):
+    client = BrainClient(transport=Transport([Response(403, {})]))
+    with pytest.raises(Exception) as error:
+        client.authenticate("user@example.test", "pw", tmp_path / "session.json")
+    assert str(error.value) == "AUTH_FAILED"
+    assert not (tmp_path / "session.json").exists()
+
+
+def test_plain_capability_401_is_auth_failed(tmp_path):
+    transport = Transport([
+        Response(200, {"authenticated": True, "user": {"id": "synthetic"}}, headers={"Set-Cookie": "session=test"}),
+        Response(401, {}),
+    ])
+    with pytest.raises(Exception) as error:
+        BrainClient(transport=transport).authenticate("user@example.test", "pw", tmp_path / "session.json")
+    assert not isinstance(error.value, AuthActionRequired)
+    assert str(error.value) == "AUTH_FAILED"
+    assert not (tmp_path / "session.json").exists()
+
+
+def test_plain_capability_403_is_permission_denied(tmp_path):
+    transport = Transport([
+        Response(200, {"authenticated": True, "user": {"id": "synthetic"}}, headers={"Set-Cookie": "session=test"}),
+        Response(403, {"detail": "must never appear in error"}),
+    ])
+    with pytest.raises(AuthPermissionDenied) as error:
+        BrainClient(transport=transport).authenticate("user@example.test", "pw", tmp_path / "session.json")
+    assert str(error.value) == "AUTH_PERMISSION_DENIED"
+    assert "must never appear" not in str(error.value)
     assert not (tmp_path / "session.json").exists()
 
 
