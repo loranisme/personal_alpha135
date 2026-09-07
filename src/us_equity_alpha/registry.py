@@ -22,6 +22,15 @@ ALLOWED_FACTOR_OPERATORS = frozenset({
     "ts_sum", "ts_zscore", "vector_neut", "winsorize", "zscore",
 })
 
+ALLOWED_DSL_NODES = (
+    ast.Module, ast.Expr, ast.Assign, ast.Name, ast.Load, ast.Store, ast.Call,
+    ast.Constant, ast.BinOp, ast.UnaryOp, ast.BoolOp, ast.Compare, ast.IfExp,
+    ast.List, ast.Tuple, ast.keyword,
+    ast.Add, ast.Sub, ast.Mult, ast.Div, ast.FloorDiv, ast.Mod, ast.Pow,
+    ast.UAdd, ast.USub, ast.Not, ast.Invert, ast.And, ast.Or,
+    ast.Eq, ast.NotEq, ast.Lt, ast.LtE, ast.Gt, ast.GtE,
+)
+
 def _canonical(value: Any) -> str:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
 
@@ -76,7 +85,14 @@ class _DependencyVisitor(ast.NodeVisitor):
         for arg in node.args:
             self.visit(arg)
         for keyword in node.keywords:
+            if keyword.arg is None:
+                self.unsupported.add("KeywordUnpacking")
             self.visit(keyword.value)
+
+    def visit_Assign(self, node: ast.Assign) -> None:
+        if len(node.targets) != 1 or not isinstance(node.targets[0], ast.Name):
+            self.unsupported.add("AssignmentTarget")
+        self.generic_visit(node)
 
     def visit_Name(self, node: ast.Name) -> None:
         if isinstance(node.ctx, ast.Store):
@@ -115,6 +131,9 @@ def analyze_expression(expression: str | None, field_catalog: Mapping[str, Any] 
         return report
     visitor = _DependencyVisitor()
     visitor.visit(tree)
+    for node in ast.walk(tree):
+        if not isinstance(node, ALLOWED_DSL_NODES):
+            visitor.unsupported.add(type(node).__name__)
     report["parsed_without_execution"] = True
     keywords = {"True", "False", "None"}
     field_names = sorted(name for name in visitor.loaded if name in catalog)

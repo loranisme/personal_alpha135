@@ -136,6 +136,28 @@ def test_unsafe_expression_syntax_is_flagged(expression):
     assert report["unsupported_syntax"]
 
 
+@pytest.mark.parametrize("expression", [
+    "while True:\n    pass",
+    "for x in close:\n    pass",
+    "def factor():\n    return close",
+    "lambda x: x",
+    "del close",
+    "[x for x in close]",
+    "{x: x for x in close}",
+    "try:\n    rank(close)\nexcept:\n    pass",
+])
+def test_non_dsl_ast_nodes_are_rejected(expression):
+    report = analyze_expression(expression, {"close": {"type": "MATRIX"}})
+    assert report["parsed_without_execution"] is True
+    assert report["safe"] is False
+    assert report["unsupported_syntax"]
+
+
+def test_keyword_unpacking_is_rejected():
+    report = analyze_expression("rank(close, **options)", {"close": {"type": "MATRIX"}})
+    assert report["safe"] is False
+
+
 def test_pagination_deduplicates_overlap_and_recovers_from_rate_limit(tmp_path):
     transport = Transport([
         Response(200, {"results": [{"id": "a"}, {"id": "b"}], "count": 3, "next": "cursor-2"}),
@@ -170,15 +192,28 @@ def test_changed_declared_count_across_resume_is_partial(tmp_path):
 
 
 def test_same_origin_next_url_offset_is_supported(tmp_path):
+    next_url = "https://api.worldquantbrain.com/users/self/alphas?limit=1&offset=1"
     transport = Transport([
-        Response(200, {"results": [{"id": "a"}], "count": 2, "next": "https://api.worldquantbrain.com/users/self/alphas?limit=1&offset=1"}),
+        Response(200, {"results": [{"id": "a"}], "count": 2, "next": next_url}),
         Response(200, {"results": [{"id": "b"}], "count": 2, "next": None}),
     ])
     result = BrainClient(transport=transport).sync_library(tmp_path)
     assert result["status"] == "COMPLETE"
-    assert transport.calls[1][2]["params"]["offset"] == "1"
+    assert transport.calls[1][1] == next_url
+    assert "params" not in transport.calls[1][2]
     evidence = json.loads((tmp_path / "evidence.json").read_text())
     assert evidence["observed_pagination_scheme"] == "next_url"
+
+
+def test_same_origin_next_url_preserves_all_query_parameters(tmp_path):
+    next_url = "https://api.worldquantbrain.com/users/self/alphas?limit=1&offset=1&order=-dateCreated&scope=mine%20only"
+    transport = Transport([
+        Response(200, {"results": [{"id": "a"}], "count": 2, "next": next_url}),
+        Response(200, {"results": [{"id": "b"}], "count": 2, "next": None}),
+    ])
+    result = BrainClient(transport=transport).sync_library(tmp_path)
+    assert result["status"] == "COMPLETE"
+    assert transport.calls[1][1] == next_url
 
 
 def test_unsupported_pagination_shape_stays_partial(tmp_path):
@@ -217,6 +252,25 @@ def test_partial_manifest_resumes_without_refetching_completed_page(tmp_path):
     assert result["status"] == "COMPLETE"
     assert result["unique_alpha_count"] == 2
     assert transport.calls[0][2]["params"]["cursor"] == "cursor-2"
+
+
+def test_resume_uses_exact_validated_next_url(tmp_path):
+    next_url = "https://api.worldquantbrain.com/users/self/alphas?offset=1&order=-dateCreated&scope=mine%20only"
+    (tmp_path / "raw_page_00001.json").write_text(json.dumps({"results": [{"id": "a"}], "count": 2, "next": next_url}))
+    (tmp_path / "sync_manifest.json").write_text(json.dumps({"status": "PARTIAL", "resume_cursor": next_url, "pages_completed": 1}))
+    transport = Transport([Response(200, {"results": [{"id": "b"}], "count": 2, "next": None})])
+    result = BrainClient(transport=transport).sync_library(tmp_path)
+    assert result["status"] == "COMPLETE"
+    assert transport.calls[0][1] == next_url
+    assert "params" not in transport.calls[0][2]
+
+
+def test_resume_manifest_must_match_last_raw_continuation(tmp_path):
+    (tmp_path / "raw_page_00001.json").write_text(json.dumps({"results": [{"id": "a"}], "count": 2, "next": "expected"}))
+    (tmp_path / "sync_manifest.json").write_text(json.dumps({"status": "PARTIAL", "resume_cursor": "different", "pages_completed": 1}))
+    with pytest.raises(Exception) as error:
+        BrainClient(transport=Transport([])).sync_library(tmp_path)
+    assert str(error.value) == "INVALID_RESUME_CHAIN"
 
 
 def test_repeated_cursor_is_partial(tmp_path):
@@ -267,11 +321,28 @@ def test_authentication_requires_nonempty_user_and_cookie(tmp_path, payload, hea
 def test_authentication_requires_metadata_capability(tmp_path):
     transport = Transport([
         Response(200, {"authenticated": True, "user": {"id": "synthetic"}}, headers={"Set-Cookie": "session=test"}),
-        Response(403, {"detail": "private response must not surface"}),
+        Response(200, {"detail": "private response must not surface"}),
     ])
     with pytest.raises(Exception) as error:
         BrainClient(transport=transport).authenticate("user@example.test", "pw", tmp_path / "session.json")
-    assert str(error.value) == "AUTH_METADATA_FORBIDDEN"
+    assert str(error.value) == "AUTH_METADATA_INVALID"
+    assert not (tmp_path / "session.json").exists()
+
+
+@pytest.mark.parametrize("status,payload", [
+    (401, {}),
+    (403, {}),
+    (200, {"verificationRequired": True}),
+    (200, {"actionRequired": True}),
+])
+def test_metadata_capability_challenge_requires_user_action(tmp_path, status, payload):
+    transport = Transport([
+        Response(200, {"authenticated": True, "user": {"id": "synthetic"}}, headers={"Set-Cookie": "session=test"}),
+        Response(status, payload),
+    ])
+    with pytest.raises(AuthActionRequired) as error:
+        BrainClient(transport=transport).authenticate("user@example.test", "pw", tmp_path / "session.json")
+    assert str(error.value) == "AUTH_ACTION_REQUIRED"
     assert not (tmp_path / "session.json").exists()
 
 

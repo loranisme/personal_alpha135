@@ -35,11 +35,20 @@ class BrainClient:
         self.authenticated_contract_verified = False
 
     def _request(self, method: str, path: str, **kwargs):
-        if method not in {"GET", "POST"} or (method == "POST" and path != "/authentication"):
+        parsed = urlparse(path)
+        if parsed.scheme or parsed.netloc:
+            base = urlparse(BASE_URL)
+            if parsed.scheme != base.scheme or parsed.netloc != base.netloc or parsed.fragment:
+                raise BrainSyncError("ENDPOINT_NOT_ALLOWED")
+            request_path = parsed.path
+            url = path
+        else:
+            request_path = path
+            url = urljoin(BASE_URL, path.lstrip("/"))
+        if method not in {"GET", "POST"} or (method == "POST" and request_path != "/authentication"):
             raise BrainSyncError("METHOD_NOT_ALLOWED")
-        if not any(path == allowed or (allowed.endswith("/") and path.startswith(allowed)) for allowed in ALLOWED_PATHS):
+        if not any(request_path == allowed or (allowed.endswith("/") and request_path.startswith(allowed)) for allowed in ALLOWED_PATHS):
             raise BrainSyncError("ENDPOINT_NOT_ALLOWED")
-        url = urljoin(BASE_URL, path.lstrip("/"))
         response = self.transport.request(method, url, timeout=self.timeout, allow_redirects=False, **kwargs)
         if 300 <= response.status_code < 400:
             raise BrainSyncError("REDIRECT_BLOCKED")
@@ -69,11 +78,13 @@ class BrainClient:
         cookie_header_value = "; ".join(f"{name}={value}" for name, value in cookies.items())
         capability = self._request("GET", "/users/self/alphas", params={"limit": 1}, headers={"Cookie": cookie_header_value})
         if capability.status_code in (401, 403):
-            raise BrainSyncError("AUTH_METADATA_FORBIDDEN")
+            raise AuthActionRequired("AUTH_ACTION_REQUIRED")
         try:
             capability_payload = capability.json()
         except Exception as exc:
             raise BrainSyncError("AUTH_METADATA_INVALID") from exc
+        if isinstance(capability_payload, dict) and any(capability_payload.get(key) for key in ("verificationRequired", "actionRequired")):
+            raise AuthActionRequired("AUTH_ACTION_REQUIRED")
         if capability.status_code >= 400 or not isinstance(capability_payload, dict) or not isinstance(capability_payload.get("results"), list):
             raise BrainSyncError("AUTH_METADATA_INVALID")
         target = Path(session_file); target.parent.mkdir(parents=True, exist_ok=True)
@@ -98,29 +109,29 @@ class BrainClient:
                 raise PageSyncError("INVALID_RETRY_AFTER") from exc
         return max(0.0, delay)
 
-    def _pagination_params(self, token: Any, page_size: int) -> tuple[dict[str, Any], str]:
+    def _pagination_request(self, token: Any, page_size: int) -> tuple[str, dict[str, Any] | None, str]:
         if token is None:
-            return {"limit": page_size}, "initial"
+            return "/users/self/alphas", {"limit": page_size}, "initial"
         if isinstance(token, int) and not isinstance(token, bool):
-            return {"limit": page_size, "offset": token}, "offset"
+            return "/users/self/alphas", {"limit": page_size, "offset": token}, "offset"
         if not isinstance(token, str):
             raise PageSyncError("UNSUPPORTED_PAGINATION")
         parsed = urlparse(token)
         if parsed.scheme or parsed.netloc:
             base = urlparse(BASE_URL)
-            if parsed.scheme != base.scheme or parsed.netloc != base.netloc or parsed.path != "/users/self/alphas":
+            if parsed.scheme != base.scheme or parsed.netloc != base.netloc or parsed.path != "/users/self/alphas" or parsed.fragment:
                 raise PageSyncError("UNSUPPORTED_PAGINATION")
             query = parse_qs(parsed.query, keep_blank_values=True)
-            allowed = {key: values[-1] for key, values in query.items() if key in {"limit", "offset", "cursor"} and values}
-            if not ("offset" in allowed or "cursor" in allowed):
+            if not ("offset" in query or "cursor" in query):
                 raise PageSyncError("UNSUPPORTED_PAGINATION")
-            return allowed, "next_url"
-        return {"limit": page_size, "cursor": token}, "cursor"
+            return token, None, "next_url"
+        return "/users/self/alphas", {"limit": page_size, "cursor": token}, "cursor"
 
     def _get_page(self, token: Any, page_size: int):
-        params, scheme = self._pagination_params(token, page_size)
+        target, params, scheme = self._pagination_request(token, page_size)
         for attempt in range(self.max_retries + 1):
-            response = self._request("GET", "/users/self/alphas", params=params)
+            request_kwargs = {"params": params} if params is not None else {}
+            response = self._request("GET", target, **request_kwargs)
             if response.status_code not in (429, 500, 502, 503, 504):
                 break
             if attempt == self.max_retries:
@@ -161,14 +172,21 @@ class BrainClient:
                 raise BrainSyncError("OUTPUT_DIRECTORY_NOT_RESUMABLE")
             cursor = prior.get("resume_cursor")
             pages = int(prior.get("pages_completed", 0))
-            for page_path in sorted(destination.glob("raw_page_*.json")):
+            page_paths = sorted(destination.glob("raw_page_*.json"))
+            if len(page_paths) != pages:
+                raise BrainSyncError("INVALID_RESUME_CHAIN")
+            last_resume_next = None
+            for page_path in page_paths:
                 page = json.loads(page_path.read_text(encoding="utf-8"))
                 if not isinstance(page, dict) or not isinstance(page.get("results"), list):
                     raise BrainSyncError("INVALID_RESUME_PAGE")
                 records.extend(page["results"])
                 declared_counts.append(page.get("count") if isinstance(page.get("count"), int) and not isinstance(page.get("count"), bool) else None)
                 if page.get("next") is not None:
+                    last_resume_next = page["next"]
                     seen_cursors.add(str(page["next"]))
+            if last_resume_next != cursor:
+                raise BrainSyncError("INVALID_RESUME_CHAIN")
         while max_pages is None or pages < max_pages:
             try:
                 payload, pagination_scheme = self._get_page(cursor, page_size)
