@@ -148,6 +148,26 @@ def group_neutralize(values: pd.DataFrame, groups: pd.Series) -> pd.DataFrame:
     return _group_transform(values, groups, lambda part: part.sub(part.mean(axis=1), axis=0))
 
 
+def panel_group_neutralize(values: pd.DataFrame, groups: pd.DataFrame) -> pd.DataFrame:
+    """Demean each daily cross-section within its point-in-time groups.
+
+    Missing group labels stay missing.  A one-security group receives zero,
+    which is the exact residual from demeaning that group and is not filled or
+    replaced with a broader classification.
+    """
+    _aligned_pair(values, groups)
+    output = pd.DataFrame(np.nan, index=values.index, columns=values.columns, dtype=float)
+    for timestamp in values.index:
+        row = values.loc[timestamp]
+        labels = groups.loc[timestamp]
+        valid = row.notna() & labels.notna()
+        if not valid.any():
+            continue
+        means = row[valid].groupby(labels[valid], sort=False).transform("mean")
+        output.loc[timestamp, valid] = row[valid] - means
+    return output
+
+
 def linear_decay(values: pd.DataFrame, window: int) -> pd.DataFrame:
     size = _window(window)
     weights = np.arange(1, size + 1, dtype=float)

@@ -6,6 +6,7 @@ import argparse
 import importlib.metadata
 import json
 import math
+import os
 import platform
 import sys
 from collections.abc import Mapping
@@ -83,9 +84,15 @@ def _parser() -> argparse.ArgumentParser:
         help="Saved provider snapshot as NAME=PATH; may be repeated.",
     )
     converter.add_argument("--output", required=True, type=Path)
+    converter.add_argument("--classification-run", type=Path)
     probe = subparsers.add_parser("probe-data", help="Run one finite authenticated provider sample.")
     probe.add_argument("--provider", required=True, choices=("alpaca", "tiingo"))
     probe.add_argument("--output", required=True, type=Path)
+    classifications = subparsers.add_parser(
+        "fetch-tiingo-classifications",
+        help="Fetch current Tiingo Fundamentals classifications into a hashed bundle.",
+    )
+    classifications.add_argument("--output", required=True, type=Path)
     return parser
 
 
@@ -243,13 +250,38 @@ def main(argv: Sequence[str] | None = None) -> int:
                 _emit({"status": "BLOCKED_CONFIG", "errors": ["INVALID_PROVIDER_RUN"]})
                 return 2
             provider_runs[name] = Path(path)
-        _emit(run_proxy_pipeline(args.registry, args.field_mapping, provider_runs, args.output))
+        _emit(run_proxy_pipeline(
+            args.registry, args.field_mapping, provider_runs, args.output,
+            args.classification_run,
+        ))
         return 0
     if args.command == "probe-data":
         from .probes import probe_data
         payload = probe_data(args.provider, args.output)
         _emit(payload)
         return 0 if payload["status"] == "PASS" else 2
+    if args.command == "fetch-tiingo-classifications":
+        from .tiingo_classifications import (
+            fetch_current_classifications,
+            write_classification_bundle,
+        )
+        token = os.environ.get("TIINGO_API_KEY")
+        if not token:
+            _emit({"status": "BLOCKED_DATA_AUTH", "errors": ["TIINGO_API_KEY_REQUIRED"]})
+            return 2
+        try:
+            frame, evidence = fetch_current_classifications(token)
+            write_classification_bundle(frame, evidence, args.output)
+        except (ValueError, OSError) as exc:
+            _emit({"status": "BLOCKED_CLASSIFICATION_DATA", "errors": [str(exc)]})
+            return 2
+        _emit({
+            "status": "PASS_CURRENT_ONLY",
+            "row_count": len(frame),
+            "historical_pit_verified": False,
+            "output": str(args.output),
+        })
+        return 0
     _emit({"command": args.command, "status": "NOT_IMPLEMENTED"})
     return 3
 

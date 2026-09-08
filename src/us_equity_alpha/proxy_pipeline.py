@@ -10,6 +10,7 @@ from typing import Any
 
 import pandas as pd
 
+from .classifications import load_classification_inputs, market_neutralization_inputs
 from .proxy_converter import (
     build_source_view,
     convert_library,
@@ -122,7 +123,8 @@ def load_provider_inputs(provider_runs: Mapping[str, Path | str]) -> dict[str, d
 
 
 def run_proxy_pipeline(registry_path: Path | str, field_mapping_path: Path | str,
-                       provider_runs: Mapping[str, Path | str], output_dir: Path | str) -> dict[str, Any]:
+                       provider_runs: Mapping[str, Path | str], output_dir: Path | str,
+                       classification_run: Path | str | None = None) -> dict[str, Any]:
     registry = json.loads(Path(registry_path).read_text(encoding="utf-8"))
     mappings = json.loads(Path(field_mapping_path).read_text(encoding="utf-8"))
     if not isinstance(registry, Mapping) or not isinstance(registry.get("records"), list):
@@ -145,8 +147,20 @@ def run_proxy_pipeline(registry_path: Path | str, field_mapping_path: Path | str
     capabilities = default_market_capabilities(
         {provider: set(fields) for provider, fields in inputs.items()}, provider_evidence
     )
-    conversion = convert_library(build_source_view(registry["records"]), by_field, capabilities)
-    verified, matrices = verify_factors(conversion, inputs)
+    neutralization_inputs, neutralization_capabilities = market_neutralization_inputs(inputs)
+    classification_evidence = None
+    if classification_run is not None:
+        supplied_inputs, supplied_capabilities, classification_evidence = (
+            load_classification_inputs(classification_run, inputs)
+        )
+        for provider, levels in supplied_inputs.items():
+            neutralization_inputs.setdefault(provider, {}).update(levels)
+        neutralization_capabilities.update(supplied_capabilities)
+    conversion = convert_library(
+        build_source_view(registry["records"]), by_field, capabilities,
+        neutralization_capabilities,
+    )
+    verified, matrices = verify_factors(conversion, inputs, neutralization_inputs)
     verified["summary"]["input_evidence"] = {
         "registry_sha256": hashlib.sha256(Path(registry_path).read_bytes()).hexdigest(),
         "field_mapping_sha256": hashlib.sha256(Path(field_mapping_path).read_bytes()).hexdigest(),
@@ -155,6 +169,8 @@ def run_proxy_pipeline(registry_path: Path | str, field_mapping_path: Path | str
             for provider, path in provider_runs.items()
         },
         "provider_evidence": provider_evidence,
+        "classification_evidence": classification_evidence,
+        "neutralization_capabilities": neutralization_capabilities,
     }
     write_conversion_artifacts(verified, matrices, capabilities, output_dir)
     return verified["summary"]

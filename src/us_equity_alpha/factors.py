@@ -14,6 +14,7 @@ from .operators import (
     cs_rank,
     days_from_last_change,
     linear_decay,
+    panel_group_neutralize,
     price_delta,
     ts_arg_max,
     ts_arg_min,
@@ -141,6 +142,7 @@ def evaluate_factor(
     expression: str,
     data: Mapping[str, pd.DataFrame],
     settings: Mapping[str, Any],
+    neutralization_groups: pd.DataFrame | None = None,
 ) -> pd.DataFrame:
     """Evaluate a frozen subset without Python eval/exec or implicit filling."""
     extra_settings = set(settings) - {'delay', 'decay', 'neutralization'}
@@ -153,8 +155,9 @@ def evaluate_factor(
         raise UnsupportedExpression("INVALID_DELAY_OR_DECAY_SETTING") from exc
     if delay < 0 or decay < 0 or delay != settings['delay'] or decay != settings.get('decay', 0):
         raise UnsupportedExpression("INVALID_DELAY_OR_DECAY_SETTING")
-    if str(settings.get("neutralization", "")).upper() != "NONE":
-        raise UnsupportedExpression("MVP_NEUTRALIZATION_NOT_SUPPORTED")
+    neutralization = str(settings.get("neutralization", "")).upper()
+    if neutralization not in {"NONE", "MARKET", "SECTOR", "INDUSTRY", "SUBINDUSTRY"}:
+        raise UnsupportedExpression("UNKNOWN_NEUTRALIZATION_SETTING")
     if not data:
         raise UnsupportedExpression("NO_INPUT_DATA")
     shapes = {(tuple(frame.index), tuple(frame.columns)) for frame in data.values()}
@@ -169,4 +172,16 @@ def evaluate_factor(
     result = _Evaluator(delayed).module(tree)
     if not isinstance(result, pd.DataFrame):
         raise UnsupportedExpression("FACTOR_RESULT_NOT_MATRIX")
-    return linear_decay(result, decay) if decay > 1 else result
+    result = linear_decay(result, decay) if decay > 1 else result
+    if neutralization == "NONE":
+        return result
+    if neutralization_groups is None:
+        raise UnsupportedExpression("NEUTRALIZATION_GROUPS_REQUIRED")
+    if not isinstance(neutralization_groups, pd.DataFrame):
+        raise UnsupportedExpression("NEUTRALIZATION_GROUPS_NOT_MATRIX")
+    if (
+        not result.index.equals(neutralization_groups.index)
+        or not result.columns.equals(neutralization_groups.columns)
+    ):
+        raise UnsupportedExpression("NEUTRALIZATION_GROUP_ALIGNMENT_MISMATCH")
+    return panel_group_neutralize(result, neutralization_groups)

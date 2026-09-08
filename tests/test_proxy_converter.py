@@ -1,6 +1,7 @@
 import copy
 import json
 
+import numpy as np
 import pandas as pd
 
 from us_equity_alpha.proxy_converter import (
@@ -140,6 +141,88 @@ def test_settings_neutralization_without_classification_is_deferred_not_rewritte
     assert decision["decision"] == "DEFERRED"
     assert "SETTINGS_NEUTRALIZATION_UNSUPPORTED:SUBINDUSTRY" in decision["blockers"]
     assert decision["settings_audit"]["neutralization"] == "UNSUPPORTED_BLOCKING"
+
+
+def test_supported_local_neutralization_is_admitted_as_explicit_proxy():
+    item = record("N", "rank(-returns)", ["returns"], ["rank"], "SUBINDUSTRY")
+    neutralization = {
+        "SUBINDUSTRY": {
+            "status": "VERIFIED_SAMPLE",
+            "provider": "fixture",
+            "taxonomy": "SIC4_PROXY",
+            "brain_taxonomy_equivalent": False,
+            "historical_pit_verified": False,
+        }
+    }
+    result = convert_library(
+        build_source_view([item]), mapping(("returns", "pv1", "Daily return")), CAPABILITIES,
+        neutralization,
+    )
+    decision = result["decisions"][0]
+    factor = result["factors"][0]
+    assert decision["decision"] == "ADMITTED"
+    assert decision["settings_audit"]["neutralization"] == "LOCAL_PROXY_PRESERVED"
+    assert factor["provenance_kind"] == "LOCAL_PROXY"
+    assert "brain_neutralization_taxonomy_parity" in factor["lost"]
+
+
+def test_neutralized_factor_id_does_not_depend_on_sample_coverage_evidence():
+    item = record("N", "rank(close)", ["close"], ["rank"], "INDUSTRY")
+    base = {
+        "status": "VERIFIED_SAMPLE", "provider": "fixture", "taxonomy": "SIC2_PROXY",
+        "brain_taxonomy_equivalent": False, "finite_labels": 20,
+    }
+    first = convert_library(
+        build_source_view([item]), mapping(("close", "pv1", "Close")), CAPABILITIES,
+        {"INDUSTRY": base},
+    )
+    changed = dict(base, finite_labels=200, provider="new_snapshot")
+    second = convert_library(
+        build_source_view([item]), mapping(("close", "pv1", "Close")), CAPABILITIES,
+        {"INDUSTRY": changed},
+    )
+    assert first["factors"][0]["local_factor_id"] == second["factors"][0]["local_factor_id"]
+
+
+def test_none_neutralized_factor_id_is_unchanged_when_group_capabilities_are_added():
+    item = record("N", "rank(close)", ["close"], ["rank"], "NONE")
+    first = convert_library(
+        build_source_view([item]), mapping(("close", "pv1", "Close")), CAPABILITIES
+    )
+    second = convert_library(
+        build_source_view([item]), mapping(("close", "pv1", "Close")), CAPABILITIES,
+        {"MARKET": {
+            "status": "DERIVED_REQUIRES_QA", "taxonomy": "PROJECT_CALC_UNIVERSE",
+            "brain_taxonomy_equivalent": False,
+        }},
+    )
+    assert first["factors"][0]["local_factor_id"] == second["factors"][0]["local_factor_id"]
+
+
+def test_verifier_computes_factor_with_neutralization_panel():
+    item = record("N", "rank(-returns)", ["returns"], ["rank"], "INDUSTRY")
+    neutralization = {
+        "INDUSTRY": {
+            "status": "VERIFIED_SAMPLE", "provider": "fixture",
+            "taxonomy": "TEST", "brain_taxonomy_equivalent": False,
+        }
+    }
+    converted = convert_library(
+        build_source_view([item]), mapping(("returns", "pv1", "Daily return")), CAPABILITIES,
+        neutralization,
+    )
+    index = pd.date_range("2024-01-02", periods=8, tz="UTC")
+    close = pd.DataFrame({"A": range(100, 108), "B": range(50, 58)}, index=index)
+    groups = pd.DataFrame([["X", "X"]] * len(index), index=index, columns=close.columns)
+    verified, matrices = verify_factors(
+        converted, {"fixture": {"close": close}},
+        {"fixture": {"INDUSTRY": groups}},
+    )
+    factor = verified["factors"][0]
+    assert factor["build_status"] == "COMPUTE_VERIFIED"
+    assert factor["checks"]["fixture"]["max_abs_group_mean"] <= 1e-12
+    observed = matrices[factor["local_factor_id"]]["fixture"]
+    assert np.allclose(observed.dropna(how="all").mean(axis=1).to_numpy(), 0.0)
 
 
 def test_all_source_settings_are_preserved_and_audited():

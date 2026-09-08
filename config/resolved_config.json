@@ -6,19 +6,21 @@
   "primary_fundamental_candidate": "UNDECIDED_PENDING_DEFINITIONS_SAMPLE",
   "filing_provenance": "sec_edgar_companyfacts",
   "classification": {
-    "status": "UNRESOLVED_OR_LOCAL_PROXY_ONLY",
+    "status": "NEUTRALIZATION_ENGINE_READY_REAL_SECTOR_INDUSTRY_SUBINDUSTRY_DATA_MISSING",
+    "current_live_candidate": "tiingo_fundamentals_meta_with_sic4_subindustry_proxy",
+    "historical_pit_verified": false,
     "original_taxonomy_equivalence": false
   },
   "alpaca_role": "HISTORICAL_SAMPLE_VERIFIED_AND_FUTURE_EXECUTION_QUOTE_CANDIDATE",
   "allow_proxy_fields": true,
   "proxy_id_prefix": "local_proxy__",
   "numeric_parity_required_before_certification": true,
-  "complete_library_status": "ALL_886_DECIDED_6_UNIQUE_CANDIDATES_PARTIAL",
+  "complete_library_status": "ALL_886_DECIDED_7_REAL_INPUT_CANDIDATES_93_NEUTRALIZATION_ENGINEERING_VERIFIED",
   "performance_selection_allowed_in_t2": false,
   "validation_holdout_access_allowed_in_t2": false,
-  "phase_completion_status": "T2B_DIAGNOSTIC_LIBRARY_BUILT_RESEARCH_NOT_ELIGIBLE",
+  "phase_completion_status": "T2C_NEUTRALIZATION_ENGINE_BUILT_REAL_CLASSIFICATION_PARTIAL",
   "proxy_policy": "PERFORMANCE_BLIND_HYPOTHESIS_CARD_LIMITED_V1",
-  "project_factor_library": "private/project_factor_library/v10/project_factor_library.json",
-  "project_factor_library_status": "6_COMPUTE_VERIFIED_880_DEFERRED",
+  "project_factor_library": "private/project_factor_library/v14/project_factor_library.json",
+  "project_factor_library_status": "7_COMPUTE_VERIFIED_879_DEFERRED_92_CLASSIFICATION_ONLY_DATA_BLOCKED",
   "automatic_proxy_release_activation": false
 }

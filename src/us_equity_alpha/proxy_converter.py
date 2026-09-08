@@ -44,6 +44,7 @@ def conversion_policy() -> dict[str, Any]:
         "allowed_transformations": [
             "IDENTITY_FIELD_BINDING",
             "EXPLICIT_DERIVED_FIELD_BINDING",
+            "EXPLICIT_LOCAL_SETTINGS_NEUTRALIZATION",
         ],
         "disallowed_transformations": [
             "PERFORMANCE_SELECTED_PROXY",
@@ -229,15 +230,23 @@ _SCOPE_SETTINGS = {"instrumentType", "region", "universe"}
 _IMPLEMENTED_SETTINGS = ("delay", "decay", "neutralization")
 
 
-def _settings_audit(settings: Mapping[str, Any]) -> dict[str, str]:
+def _settings_audit(
+    settings: Mapping[str, Any],
+    neutralization_capabilities: Mapping[str, Mapping[str, Any]] | None = None,
+) -> dict[str, str]:
     audit: dict[str, str] = {}
     for key in settings:
         if key in {"delay", "decay"}:
             audit[key] = "PRESERVED"
         elif key == "neutralization":
-            audit[key] = (
-                "PRESERVED" if str(settings[key]).upper() == "NONE" else "UNSUPPORTED_BLOCKING"
-            )
+            level = str(settings[key]).upper()
+            capability = (neutralization_capabilities or {}).get(level)
+            if level == "NONE":
+                audit[key] = "PRESERVED"
+            elif capability and capability.get("status") in ALLOWED_CAPABILITY_STATES:
+                audit[key] = "LOCAL_PROXY_PRESERVED"
+            else:
+                audit[key] = "UNSUPPORTED_BLOCKING"
         elif key in _SCOPE_SETTINGS:
             audit[key] = "REPLACED_BY_PROJECT_CALC_UNIVERSE"
         elif key == "language":
@@ -272,7 +281,9 @@ def _deferred(source: Mapping[str, Any], card: Mapping[str, Any], blockers: list
 
 def convert_library(source_view: Sequence[Mapping[str, Any]],
                     field_map: Mapping[str, Mapping[str, Any]],
-                    capabilities: Mapping[str, Mapping[str, Any]]) -> dict[str, Any]:
+                    capabilities: Mapping[str, Mapping[str, Any]],
+                    neutralization_capabilities: Mapping[str, Mapping[str, Any]] | None = None,
+                    ) -> dict[str, Any]:
     """Convert every source to an admitted factor or an explicit deferral."""
     cards: list[dict[str, Any]] = []
     decisions: list[dict[str, Any]] = []
@@ -285,7 +296,7 @@ def convert_library(source_view: Sequence[Mapping[str, Any]],
         fields = [str(item.get("identifier")) for item in deps.get("fields", [])]
         operators = set(deps.get("operators", []))
         settings = source.get("settings") or {}
-        settings_audit = _settings_audit(settings)
+        settings_audit = _settings_audit(settings, neutralization_capabilities)
         blockers: list[str] = []
         if not source.get("expression") or not deps.get("safe", False):
             blockers.append("SOURCE_EXPRESSION_UNSAFE")
@@ -293,10 +304,13 @@ def convert_library(source_view: Sequence[Mapping[str, Any]],
             blockers.append("DESCRIPTION_FORMULA_CONFLICT")
         if operators & GROUP_OPERATORS:
             blockers.append("GROUP_RELATION_IS_ESSENTIAL")
-        if str(settings.get("neutralization", "NONE")).upper() != "NONE":
-            blockers.append(
-                "SETTINGS_NEUTRALIZATION_UNSUPPORTED:" + str(settings.get("neutralization"))
-            )
+        neutralization = str(settings.get("neutralization", "NONE")).upper()
+        neutralization_capability = (neutralization_capabilities or {}).get(neutralization)
+        if neutralization != "NONE" and (
+            not neutralization_capability
+            or neutralization_capability.get("status") not in ALLOWED_CAPABILITY_STATES
+        ):
+            blockers.append("SETTINGS_NEUTRALIZATION_UNSUPPORTED:" + neutralization)
         if any("implied_volatility" in field for field in fields):
             blockers.append("FORWARD_LOOKING_OPTION_INFORMATION_LOST")
 
@@ -332,9 +346,19 @@ def convert_library(source_view: Sequence[Mapping[str, Any]],
             ))
             continue
         changed_fields = sorted(field for field in fields if bindings[field] != field)
-        is_proxy = bool(changed_fields)
+        neutralization_is_proxy = neutralization != "NONE" and not bool(
+            neutralization_capability.get("brain_taxonomy_equivalent", False)
+            if neutralization_capability else False
+        )
+        is_proxy = bool(changed_fields) or neutralization_is_proxy
         semantic_status = "PARTIAL_MECHANISM" if is_proxy else "MECHANISM_SUPPORTED"
         provenance_kind = "LOCAL_PROXY" if is_proxy else "LOCAL_DIRECT"
+        neutralization_definition = None
+        if neutralization_capability is not None:
+            neutralization_definition = {
+                key: copy.deepcopy(neutralization_capability.get(key))
+                for key in ("taxonomy", "brain_taxonomy_equivalent")
+            }
         lineage_payload = {
             "expression": expression,
             "settings": local_settings,
@@ -342,6 +366,8 @@ def convert_library(source_view: Sequence[Mapping[str, Any]],
             "universe_contract": "PROJECT_CALC_UNIVERSE",
             "source_definition_settings": _definition_settings(settings),
         }
+        if neutralization_definition is not None:
+            lineage_payload["neutralization_definition"] = neutralization_definition
         lineage_hash = hashlib.sha256(_canonical(lineage_payload).encode()).hexdigest()
         factor = factors_by_lineage.get(lineage_hash)
         if factor is None:
@@ -371,8 +397,16 @@ def convert_library(source_view: Sequence[Mapping[str, Any]],
                 "usage_tier": "DIAGNOSTIC_ONLY",
                 "brain_value_parity": "NOT_CLAIMED" if is_proxy else "UNVERIFIED",
                 "preserved": card["mechanisms"],
-                "lost": [f"brain_field_definition_parity:{field}" for field in changed_fields],
-                "new_exposures": [f"local_binding:{field}" for field in changed_fields],
+                "lost": (
+                    [f"brain_field_definition_parity:{field}" for field in changed_fields]
+                    + (["brain_neutralization_taxonomy_parity"] if neutralization_is_proxy else [])
+                ),
+                "new_exposures": (
+                    [f"local_binding:{field}" for field in changed_fields]
+                    + ([f"local_neutralization_taxonomy:{neutralization}"]
+                       if neutralization_is_proxy else [])
+                ),
+                "neutralization_capability": copy.deepcopy(neutralization_capability),
                 "lineage_hash": lineage_hash,
                 "checks": {"performance_blind_conversion": True},
             }
@@ -496,10 +530,24 @@ def _node_required_history(node: ast.AST, variables: dict[str, int] | None = Non
 
 def verify_factors(conversion: Mapping[str, Any],
                    provider_inputs: Mapping[str, Mapping[str, pd.DataFrame]],
+                   neutralization_inputs: Mapping[str, Mapping[str, pd.DataFrame]] | None = None,
                    *, prefix_rows: int = 5) -> tuple[dict[str, Any], dict[str, dict[str, pd.DataFrame]]]:
     """Run compiled candidates on real/synthetic aligned inputs without labels."""
     result = copy.deepcopy(conversion)
     matrices: dict[str, dict[str, pd.DataFrame]] = {}
+
+    def max_abs_group_mean(values: pd.DataFrame, groups: pd.DataFrame) -> float:
+        maximum = 0.0
+        for timestamp in values.index:
+            row = values.loc[timestamp]
+            labels = groups.loc[timestamp]
+            valid = row.notna() & labels.notna()
+            if valid.any():
+                means = row[valid].groupby(labels[valid], sort=False).mean().abs()
+                if not means.empty:
+                    maximum = max(maximum, float(means.max()))
+        return maximum
+
     for factor in result["factors"]:
         checks: dict[str, Any] = {}
         factor_matrices: dict[str, pd.DataFrame] = {}
@@ -524,14 +572,29 @@ def verify_factors(conversion: Mapping[str, Any],
             + max(int(factor["settings"].get("decay", 0)) - 1, 0)
         )
         for provider, inputs in provider_inputs.items():
+            neutralization = str(factor["settings"].get("neutralization", "NONE")).upper()
+            group_matrix = None
+            if neutralization != "NONE":
+                group_matrix = (neutralization_inputs or {}).get(provider, {}).get(neutralization)
+                if group_matrix is None:
+                    checks[provider] = {
+                        "status": "NOT_APPLICABLE",
+                        "missing_inputs": [f"neutralization:{neutralization}"],
+                    }
+                    continue
             missing = sorted(required_inputs - set(inputs))
             if missing:
                 checks[provider] = {"status": "NOT_APPLICABLE", "missing_inputs": missing}
                 continue
             try:
-                full = evaluate_factor(factor["expression"], inputs, factor["settings"])
+                full = evaluate_factor(
+                    factor["expression"], inputs, factor["settings"], group_matrix
+                )
                 prefix_inputs = {name: frame.iloc[:-prefix_rows] for name, frame in inputs.items()}
-                prefix = evaluate_factor(factor["expression"], prefix_inputs, factor["settings"])
+                prefix_groups = group_matrix.iloc[:-prefix_rows] if group_matrix is not None else None
+                prefix = evaluate_factor(
+                    factor["expression"], prefix_inputs, factor["settings"], prefix_groups
+                )
                 pd.testing.assert_frame_equal(full.iloc[:-prefix_rows], prefix)
                 finite = int(np.isfinite(full.to_numpy(dtype=float)).sum())
                 if finite == 0:
@@ -543,8 +606,14 @@ def verify_factors(conversion: Mapping[str, Any],
                         }
                         continue
                     raise ValueError("NO_FINITE_FACTOR_VALUES")
-                checks[provider] = {"status": "PASS", "finite_values": finite,
-                                    "prefix_invariant": True}
+                check = {"status": "PASS", "finite_values": finite,
+                         "prefix_invariant": True}
+                if group_matrix is not None:
+                    neutrality_error = max_abs_group_mean(full, group_matrix)
+                    if neutrality_error > 1e-12:
+                        raise ValueError("NEUTRALIZATION_GROUP_MEAN_NONZERO")
+                    check["max_abs_group_mean"] = neutrality_error
+                checks[provider] = check
                 factor_matrices[provider] = full
             except (ValueError, TypeError, AssertionError, KeyError) as exc:
                 failed = True

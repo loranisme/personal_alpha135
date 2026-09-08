@@ -1,6 +1,8 @@
 import hashlib
 import json
 
+import pandas as pd
+
 from us_equity_alpha.cli import main
 from us_equity_alpha.proxy_pipeline import load_provider_inputs, run_proxy_pipeline
 
@@ -29,6 +31,33 @@ def write_run(path, *, include_vwap, mode):
         "historical_pit_verified": False,
     }))
     manifest[report.name] = hashlib.sha256(report.read_bytes()).hexdigest()
+    (path / "manifest.json").write_text(json.dumps(manifest))
+
+
+def write_classification_run(path):
+    path.mkdir()
+    data = path / "classifications.parquet"
+    pd.DataFrame([
+        {"symbol": symbol, "effective_at": "2020-01-01T00:00:00Z",
+         "available_at": "2020-01-01T00:00:00Z", "sector": "S",
+         "industry": "I", "subindustry": "SI"}
+        for symbol in ("AAPL", "MSFT")
+    ]).to_parquet(data, index=False)
+    report = path / "report.json"
+    report.write_text(json.dumps({
+        "classification_evidence_verified": True,
+        "real_classification_verified": False,
+        "historical_pit_verified": True,
+        "provider": "fixture",
+        "levels": ["SECTOR", "INDUSTRY", "SUBINDUSTRY"],
+        "taxonomy_by_level": {"SECTOR": "T", "INDUSTRY": "T", "SUBINDUSTRY": "T"},
+        "brain_taxonomy_equivalent": {
+            "SECTOR": False, "INDUSTRY": False, "SUBINDUSTRY": False,
+        },
+    }))
+    manifest = {
+        item.name: hashlib.sha256(item.read_bytes()).hexdigest() for item in (data, report)
+    }
     (path / "manifest.json").write_text(json.dumps(manifest))
 
 
@@ -98,6 +127,33 @@ def test_pipeline_gives_every_source_one_decision_and_writes_library(tmp_path):
     decisions = [json.loads(line) for line in (output / "proxy_decisions.jsonl").read_text().splitlines()]
     assert len({row["source_alpha_id"] for row in decisions}) == 886
     assert {"A", "F"}.issubset({row["source_alpha_id"] for row in decisions})
+
+
+def test_pipeline_admits_settings_neutralization_only_with_classification_bundle(tmp_path):
+    registry = tmp_path / "registry.json"
+    neutralized = source("N", "rank(close)", ["close"])
+    neutralized["settings"]["neutralization"] = "INDUSTRY"
+    registry.write_text(json.dumps({
+        "sync_scope_complete": True, "records": complete_records([neutralized])
+    }))
+    mapping = tmp_path / "mapping.json"
+    mapping.write_text(json.dumps([{"field_id": "close", "dataset": "pv1"}]))
+    bars = tmp_path / "bars"
+    write_run(bars, include_vwap=True, mode="alpaca")
+    without = run_proxy_pipeline(
+        registry, mapping, {"alpaca_sip": bars}, tmp_path / "without"
+    )
+    assert without["deferred_source_count"] == 1
+    classifications = tmp_path / "classifications"
+    write_classification_run(classifications)
+    with_groups = run_proxy_pipeline(
+        registry, mapping, {"alpaca_sip": bars}, tmp_path / "with", classifications
+    )
+    assert with_groups["deferred_source_count"] == 0
+    assert with_groups["compute_verified_source_count"] == 886
+    assert with_groups["input_evidence"]["classification_evidence"]["report"][
+        "real_classification_verified"
+    ] is False
 
 
 def test_convert_library_cli_runs_the_real_pipeline(tmp_path, capsys):

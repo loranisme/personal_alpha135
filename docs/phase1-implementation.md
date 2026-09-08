@@ -2,7 +2,7 @@
 
 统一依据：[原工程设计方案 v1.2](../../2026-09-06-us-equity-alpha-implementation-plan.md)（2026-09-08）。本文件任务内容摘自该主方案；后续冲突以主方案为准。
 
-当前证据：T1 当前库 886 个唯一 ID；T2b 已处理全部来源并生成 886 张假设卡片和逐项决策。6 条来源被纳入 6 个唯一候选（5 个直接、1 个原始收盘价收益 Proxy），并在 Alpaca SIP/Tiingo EOD 已保存真实样本上计算通过；880 条来源保留为 `DEFERRED`。其中 879 条因非 `NONE` 的 BRAIN 中性化无法用当前分类数据等价实现而被阻断，不再批量改写。所有候选仍为 `DIAGNOSTIC_ONLY`，`RESEARCH_ELIGIBLE=0`；未认证 BRAIN 等价或历史 PIT。
+当前证据：T1 当前库 886 个唯一 ID；T2b 已处理全部来源。T2c 已实现设置级 MARKET/SECTOR/INDUSTRY/SUBINDUSTRY 中性化、PIT 分类输入和当前 Tiingo 分类适配器。93 个仅缺中性化的来源全部通过合成工程回放；真实数据口径仅新增放行 1 个 MARKET 中性化来源，v14 共 7 个来源计算通过、879 个暂缓。其余 92 个仍缺真实分类数据。所有候选仍为 `DIAGNOSTIC_ONLY`，`RESEARCH_ELIGIBLE=0`。
 
 新版顺序：T0 → T1 → T2 数据能力 → T2b 假设/模板/项目候选库 → T3 原矩阵及合成接口。原 T4–T8 验证、组合、执行和日报保持不变。每条来源已有去向，唯一目标与源 ID 分别统计；不能合理表达的假设没有被强行改造成量价公式。
 
@@ -107,7 +107,7 @@ def test_future_revision_is_not_visible(tmp_path):
 
 **计划文件：** `proxy_converter.py`、`factor_library.py`、`tests/test_proxy_converter.py`、`tests/test_factor_library.py`；私有卡片、模板实例和输出按第 6.7 节保存。
 
-**输入/输出：** T1 去绩效投影视图 + T2 能力目录 → 假设卡片、直接/Proxy 决策、唯一目标定义、来源血缘、待处理清单及覆盖报告。当前有效实现位于 `private/project_factor_library/v10/`；v7 已被代码审查否决，不得用于下游。
+**输入/输出：** T1 去绩效投影视图 + T2 能力目录 → 假设卡片、直接/Proxy 决策、唯一目标定义、来源血缘、待处理清单及覆盖报告。当前有效实现位于 `private/project_factor_library/v14/`；v7 已被代码审查否决，不得用于下游。
 
 - [x] 对 886 个来源建立完整去向清单；原 5 个直接本地定义兼容导入，其余来源按证据纳入 Proxy 或暂缓。
 - [x] 以确定性规则生成 886 张假设卡片，区分原描述与公式推断；缺字段、缺算子、缺分类、未知机制和注释/公式冲突均保留。卡片是机器分类，尚未冒充人工语义批准。
@@ -119,6 +119,14 @@ def test_future_revision_is_not_visible(tmp_path):
 - [x] 输出分层计数、失败原因、输入哈希和制品 manifest；未浏览策略收益，未自动发布。
 
 **验收：** 每个来源有可追踪去向；每个目标可独立解释与计算；同一代理不因多个来源重复计权；无合理代理也能正常返回待处理。未知覆盖数不得用解析数量或来源 ID 数替代。
+
+### T2c：补齐设置级中性化
+
+- [x] 中性化在表达式、delay 和 decay 后按当日分组去均值；缺分类保持 NaN，单成员组得到零残差。
+- [x] 分类记录同时受 `effective_at` 与 `available_at` 约束；未来分类不回填历史。
+- [x] MARKET 由项目当日计算池生成；SECTOR/INDUSTRY/SUBINDUSTRY 必须由带 manifest 的分类 bundle 提供。
+- [x] 93 个仅缺中性化来源全部通过 220 会话合成工程回放，未读取收益标签。
+- [ ] 接入真实分类：65 个 SUBINDUSTRY、26 个 INDUSTRY、1 个 SECTOR 仍阻塞。Tiingo 当前 metadata 可作 live SIC proxy，但不能证明历史 PIT 或 BRAIN 分类等价。
 
 ### T3：实现最小算子、设置和等权信号
 
