@@ -1,20 +1,14 @@
-> **2026-09-07 audit correction:** Phase 1 is PARTIAL. Five definitions executed on synthetic data only; zero real-data or BRAIN-equivalent Alpha conversions are verified. T2 now includes settings-derived sector: 203 dependencies (202 expression fields), with 8 direct candidates, 25 proxies, 109 specialist requirements and 61 unknown. Previous counts below are historical and superseded. Full BRAIN settings are now rejected by the local evaluator; explicit local variants must record exclusions. See [current audit](../../2026-09-07-alpha-conversion-audit.md) for the current findings.
+# Phase 1 — T0–T3 与假设转换器 T2b
 
-# Phase 1 implementation — T0 to T3 only
+统一依据：[原工程设计方案 v1.2](../../2026-09-06-us-equity-alpha-implementation-plan.md)（2026-09-08）。本文件任务内容摘自该主方案；后续冲突以主方案为准。
 
-Implementation status as of 2026-09-07: T0 complete; T1 current-library sync
-complete for the API-declared 886 records, while search-history completeness
-remains unknown; T2 mapping complete but Alpaca/Tiingo market samples are
-`NOT_RUN_AUTH_REQUIRED`; T3 minimal direct-candidate subset complete for five
-Alpha definitions with synthetic execution only and numeric parity unverified.
+当前证据：T1 当前库 886 个唯一 ID；T2b 已处理全部来源并生成 886 张假设卡片和逐项决策。6 条来源被纳入 6 个唯一候选（5 个直接、1 个原始收盘价收益 Proxy），并在 Alpaca SIP/Tiingo EOD 已保存真实样本上计算通过；880 条来源保留为 `DEFERRED`。其中 879 条因非 `NONE` 的 BRAIN 中性化无法用当前分类数据等价实现而被阻断，不再批量改写。所有候选仍为 `DIAGNOSTIC_ONLY`，`RESEARCH_ELIGIBLE=0`；未认证 BRAIN 等价或历史 PIT。
 
-Authority: ../2026-09-06-us-equity-alpha-implementation-plan.md (v1.1). User requests real Alpha mapping and source selection first.
+新版顺序：T0 → T1 → T2 数据能力 → T2b 假设/模板/项目候选库 → T3 原矩阵及合成接口。原 T4–T8 验证、组合、执行和日报保持不变。每条来源已有去向，唯一目标与源 ID 分别统计；不能合理表达的假设没有被强行改造成量价公式。
 
-Global constraints: Read-only BRAIN metadata; no simulation, submission, deletion, trading, PnL fetching or performance-driven factor selection. Credentials stay user-controlled and never printed/logged/committed. All private Alpha expressions, IDs, original snapshots, field catalogs and account data stay under private/ or runs/ (Git ignored). Synthetic fixtures prove engineering only. Missing definitions or data remain UNKNOWN/PARTIAL; no provider can be declared complete from field names alone. Historical PIT, revisions, universe, corporate actions and execution quote coverage must be distinguished. No T4-T8 strategy validation or protected holdout access this phase. Python 3.12, local venv, pandas/NumPy/SciPy/requests/pytest/Parquet/openpyxl plus Alphalens Reloaded/vectorbt compatibility probe. First write behavioral failing tests then minimal implementation.
+所有任务清单是目标验收，不代表全部未开始或全部已通过；实际完成状态必须由运行报告逐项证明。设计工作已授权，工程实现不得用合成数据冒充真实验证；不访问收益/留出标签，不产生下单副作用。
 
-Rulings: This is a new isolated project on implementation/phase1; no existing repository is modified. T0 release validation rejects missing values but T1 metadata import and T2 mapping work without unchosen strategy parameters. No actual data credentials should block synthetic engineering. Later-phase CLI contracts must reject as NOT_IMPLEMENTED. Phase completion reports engineering and actual data coverage separately.
-
-## Task 1: T0 —建立输入契约、依赖锁与可运行骨架
+### T0：建立输入契约、依赖锁与可运行骨架
 
 **文件：** `pyproject.toml`、`dependency-lock.txt`、`src/us_equity_alpha/contracts.py`、`src/us_equity_alpha/cli.py`、`tests/test_contracts.py`、`.gitignore`。
 
@@ -38,8 +32,7 @@ def test_missing_release_config_blocks():
 
 **验收：** 缺输入被准确阻断；锁文件可复建最小环境；未发出任何真实平台或交易请求。
 
-
-## Task 2: T1 —读取/导入 BRAIN 库，建立完整性与暴露登记
+### T1：读取/导入 BRAIN 库，建立完整性与暴露登记
 
 **文件：** `brain_sync.py`、`registry.py`、`tests/test_brain_sync.py`、`tests/fixtures/brain_export.json`。
 
@@ -70,18 +63,17 @@ def test_failed_alpha_is_kept_and_history_is_not_invented(tmp_path):
 
 **验收：** 每条可访问实验有去向；不隐藏失败；能给出未知搜索历史；终端认证由用户控制。
 
-
-## Task 3: T2 —完成字段映射、数据探针与历史时点校验
+### T2：完成字段映射、数据探针与历史时点校验
 
 **文件：** `market_data.py`、`universe.py`、`actions.py`、`tests/test_market_data.py`、`config/resolved_config.json`。
 
-**输入/输出：** T1 因子依赖 → `field_mapping.csv`、`data_source_decision.md`、证券/行业/事件数据、覆盖报告。
+**输入/输出：** T1 因子依赖 + 现有两源样本 → `field_mapping.csv`、`data_capabilities.json`、`data_source_decision.md`、证券/行业/事件数据及覆盖报告；为 T2b 提供可用能力，不承诺补齐原字段。
 
 - [ ] 按第 5 节逐字段列出定义、来源候选、可用时点、代理差异和费用依据；仅对必需来源做最小样本探针。
 - [ ] 单独调查执行 bid/ask、feed 权限、时间戳、报价精度和历史窗口覆盖；决定可认证历史执行还是只做诊断/前瞻，不能仅凭有日线价格认定全部数据就绪。
 - [ ] 建立修订、上市/退市、改代码、早收市、跨夏令时、缺失行情和拆股合成夹具；测试先运行失败。
 - [ ] 实现 as-of 版本选择和计算池/交易池；未知行业、新股不足窗口和缺失量价按合同输出原因。
-- [ ] 决定并冻结首批供应商和可用因子范围；所有代理使用新本地因子 ID。
+- [ ] 按第 6.4 节建立能力分层、依赖 DAG 和证据范围；冻结首批来源/口径。原字段缺失保留原映射状态，交给 T2b 判断经济机制，不在字段表内伪装成定义匹配。
 - [ ] 用真实小样本核查单位、公司行动前后和财报披露；只产出数据/语义结果，不提前浏览 Validation/Holdout 的策略绩效。
 - [ ] 保存原始快照、覆盖、映射证据与哈希，运行全部数据测试。
 
@@ -109,14 +101,30 @@ def test_future_revision_is_not_visible(tmp_path):
 
 **运行：** `python -m pytest tests/test_market_data.py -q`。
 
-**验收：** 字段可用性与局限可追溯；没有未来修订、复权或股票池泄漏；不可满足的因子被明确暂缓。
+**验收：** 字段可用性与局限可追溯；未来修订/复权/股票池缺口如实阻断；原字段不能直接对应时进入 T2b，不再默认永久排除。
 
+### T2b：构建假设驱动转换器与项目候选因子库（v1.2 新增）
 
-## Task 4: T3 —实现最小算子、设置和等权信号
+**计划文件：** `proxy_converter.py`、`factor_library.py`、`tests/test_proxy_converter.py`、`tests/test_factor_library.py`；私有卡片、模板实例和输出按第 6.7 节保存。
+
+**输入/输出：** T1 去绩效投影视图 + T2 能力目录 → 假设卡片、直接/Proxy 决策、唯一目标定义、来源血缘、待处理清单及覆盖报告。当前有效实现位于 `private/project_factor_library/v10/`；v7 已被代码审查否决，不得用于下游。
+
+- [x] 对 886 个来源建立完整去向清单；原 5 个直接本地定义兼容导入，其余来源按证据纳入 Proxy 或暂缓。
+- [x] 以确定性规则生成 886 张假设卡片，区分原描述与公式推断；缺字段、缺算子、缺分类、未知机制和注释/公式冲突均保留。卡片是机器分类，尚未冒充人工语义批准。
+- [x] 建立 5 个当前可用家族和有限模板；相同公式、完整定义 settings、绑定与计算池才可归并，多条来源血缘分别保留。
+- [x] 实现实际候选需要的最小派生字段与算子；原数据适配层保持兼容。
+- [x] 为 QA37–48 建立回归测试，并实现安全编译、状态闸门、ID/版本/血缘与归并逻辑。
+- [x] 在保存的 Alpaca SIP/Tiingo EOD 真实快照上批量计算并做前缀不变性检查；所有候选仍为 `DIAGNOSTIC_ONLY`。
+- [x] 构造 T3 registry 适配器；旧 5 个直接因子在相同数据上的 `factor_values` 逐值一致。
+- [x] 输出分层计数、失败原因、输入哈希和制品 manifest；未浏览策略收益，未自动发布。
+
+**验收：** 每个来源有可追踪去向；每个目标可独立解释与计算；同一代理不因多个来源重复计权；无合理代理也能正常返回待处理。未知覆盖数不得用解析数量或来源 ID 数替代。
+
+### T3：实现最小算子、设置和等权信号
 
 **文件：** `operators.py`、`factors.py`、`signals.py`、`tests/test_operators.py`、`tests/test_signals.py`。
 
-**输入/输出：** T1/T2 审核后的因子和数据 → `factor_values` 与固定尺度综合分数；保留每因子有效性。
+**输入/输出：** T2b 项目候选因子库的审核视图 + T2 数据 → 原有 `factor_values` 与固定尺度综合分数；保持每因子有效性、固定 K 和后续接口。仅 DIAGNOSTIC_ONLY 的记录不能伪装为正式策略输入。
 
 - [ ] 为真实入选操作符建立短序列手算值，先覆盖价格差/收益率、并列排名、NaN、窗口边界、分组和 Decay。
 - [ ] 定义 `price_delta(price: DataFrame, window: int) -> DataFrame`，并只实现真实依赖的其他算子；每项有文档定义及对应测试。

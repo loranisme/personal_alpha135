@@ -10,7 +10,28 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from .operators import cs_rank, linear_decay, price_delta, ts_delay, ts_mean, ts_rank, ts_std_dev
+from .operators import (
+    cs_rank,
+    days_from_last_change,
+    linear_decay,
+    price_delta,
+    ts_arg_max,
+    ts_arg_min,
+    ts_corr,
+    ts_covariance,
+    ts_delay,
+    ts_mean,
+    ts_rank,
+    ts_scale,
+    ts_std_dev,
+    ts_sum,
+)
+
+
+def _if_else(condition: pd.DataFrame, when_true: Any, when_false: Any) -> pd.DataFrame:
+    return pd.DataFrame(
+        np.where(condition, when_true, when_false), index=condition.index, columns=condition.columns
+    )
 
 
 class UnsupportedExpression(ValueError):
@@ -24,6 +45,14 @@ FUNCTIONS = {
     "ts_mean": ts_mean,
     "ts_rank": ts_rank,
     "ts_std_dev": ts_std_dev,
+    "ts_sum": ts_sum,
+    "ts_corr": ts_corr,
+    "ts_covariance": ts_covariance,
+    "ts_arg_min": ts_arg_min,
+    "ts_arg_max": ts_arg_max,
+    "ts_scale": ts_scale,
+    "days_from_last_change": days_from_last_change,
+    "if_else": _if_else,
     "abs": np.abs,
     "log": np.log,
     "sign": np.sign,
@@ -83,6 +112,20 @@ class _Evaluator:
             operation = operations.get(type(node.op))
             if operation is None:
                 raise UnsupportedExpression(f"UNSUPPORTED_BINARY_OPERATOR:{type(node.op).__name__}")
+            return operation()
+        if isinstance(node, ast.Compare) and len(node.ops) == 1 and len(node.comparators) == 1:
+            left, right = self.node(node.left), self.node(node.comparators[0])
+            operations = {
+                ast.Gt: lambda: left > right,
+                ast.GtE: lambda: left >= right,
+                ast.Lt: lambda: left < right,
+                ast.LtE: lambda: left <= right,
+                ast.Eq: lambda: left == right,
+                ast.NotEq: lambda: left != right,
+            }
+            operation = operations.get(type(node.ops[0]))
+            if operation is None:
+                raise UnsupportedExpression(f"UNSUPPORTED_COMPARISON:{type(node.ops[0]).__name__}")
             return operation()
         if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
             function = FUNCTIONS.get(node.func.id)

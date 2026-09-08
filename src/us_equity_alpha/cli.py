@@ -72,6 +72,17 @@ def _parser() -> argparse.ArgumentParser:
     mapper.add_argument("--registry", required=True, type=Path)
     mapper.add_argument("--field-catalog", required=True, type=Path)
     mapper.add_argument("--output", required=True, type=Path)
+    converter = subparsers.add_parser(
+        "convert-library",
+        help="Build a performance-blind direct/proxy candidate factor library.",
+    )
+    converter.add_argument("--registry", required=True, type=Path)
+    converter.add_argument("--field-mapping", required=True, type=Path)
+    converter.add_argument(
+        "--provider-run", required=True, action="append",
+        help="Saved provider snapshot as NAME=PATH; may be repeated.",
+    )
+    converter.add_argument("--output", required=True, type=Path)
     probe = subparsers.add_parser("probe-data", help="Run one finite authenticated provider sample.")
     probe.add_argument("--provider", required=True, choices=("alpaca", "tiingo"))
     probe.add_argument("--output", required=True, type=Path)
@@ -219,6 +230,20 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "map-library":
         from .mapping import map_library
         _emit(map_library(args.registry, args.field_catalog, args.output))
+        return 0
+    if args.command == "convert-library":
+        from .proxy_pipeline import run_proxy_pipeline
+        provider_runs = {}
+        for item in args.provider_run:
+            if "=" not in item:
+                _emit({"status": "BLOCKED_CONFIG", "errors": ["INVALID_PROVIDER_RUN"]})
+                return 2
+            name, path = item.split("=", 1)
+            if not name or not path or name in provider_runs:
+                _emit({"status": "BLOCKED_CONFIG", "errors": ["INVALID_PROVIDER_RUN"]})
+                return 2
+            provider_runs[name] = Path(path)
+        _emit(run_proxy_pipeline(args.registry, args.field_mapping, provider_runs, args.output))
         return 0
     if args.command == "probe-data":
         from .probes import probe_data

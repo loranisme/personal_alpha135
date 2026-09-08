@@ -33,6 +33,81 @@ def ts_std_dev(values: pd.DataFrame, window: int) -> pd.DataFrame:
     return values.rolling(size, min_periods=size).std(ddof=0)
 
 
+def ts_sum(values: pd.DataFrame, window: int) -> pd.DataFrame:
+    size = _window(window)
+    return values.rolling(size, min_periods=size).sum()
+
+
+def _aligned_pair(left: pd.DataFrame, right: pd.DataFrame) -> None:
+    if not left.index.equals(right.index) or not left.columns.equals(right.columns):
+        raise ValueError("INPUT_ALIGNMENT_MISMATCH")
+
+
+def ts_corr(left: pd.DataFrame, right: pd.DataFrame, window: int) -> pd.DataFrame:
+    _aligned_pair(left, right)
+    size = _window(window)
+    return pd.DataFrame({
+        column: left[column].rolling(size, min_periods=size).corr(right[column])
+        for column in left.columns
+    }, index=left.index)
+
+
+def ts_covariance(left: pd.DataFrame, right: pd.DataFrame, window: int) -> pd.DataFrame:
+    _aligned_pair(left, right)
+    size = _window(window)
+    return pd.DataFrame({
+        column: left[column].rolling(size, min_periods=size).cov(right[column], ddof=0)
+        for column in left.columns
+    }, index=left.index)
+
+
+def _arg_extreme(values: pd.DataFrame, window: int, *, maximum: bool) -> pd.DataFrame:
+    size = _window(window)
+
+    def sessions_back(array: np.ndarray) -> float:
+        if np.isnan(array).any():
+            return np.nan
+        position = int(np.argmax(array) if maximum else np.argmin(array))
+        return float(len(array) - 1 - position)
+
+    return values.rolling(size, min_periods=size).apply(sessions_back, raw=True)
+
+
+def ts_arg_min(values: pd.DataFrame, window: int) -> pd.DataFrame:
+    return _arg_extreme(values, window, maximum=False)
+
+
+def ts_arg_max(values: pd.DataFrame, window: int) -> pd.DataFrame:
+    return _arg_extreme(values, window, maximum=True)
+
+
+def ts_scale(values: pd.DataFrame, window: int) -> pd.DataFrame:
+    size = _window(window)
+    minimum = values.rolling(size, min_periods=size).min()
+    span = values.rolling(size, min_periods=size).max() - minimum
+    return (values - minimum) / span.replace(0.0, np.nan)
+
+
+def days_from_last_change(values: pd.DataFrame) -> pd.DataFrame:
+    output = pd.DataFrame(np.nan, index=values.index, columns=values.columns, dtype=float)
+    for column in values:
+        previous = None
+        elapsed = 0
+        for position, value in enumerate(values[column].to_numpy(dtype=float)):
+            if np.isnan(value):
+                output.iloc[position, output.columns.get_loc(column)] = np.nan
+                previous = None
+                elapsed = 0
+            elif previous is None or value != previous:
+                elapsed = 0
+                output.iloc[position, output.columns.get_loc(column)] = 0.0
+                previous = value
+            else:
+                elapsed += 1
+                output.iloc[position, output.columns.get_loc(column)] = float(elapsed)
+    return output
+
+
 def ts_rank(values: pd.DataFrame, window: int) -> pd.DataFrame:
     """Percentile rank of the current value in a full trailing window.
 

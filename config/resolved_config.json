@@ -2,20 +2,23 @@
   "schema_version": 1,
   "phase": "T0_TO_T3",
   "data_scope": "NARROW_SOURCE_SUPPORTED_MVP",
-  "primary_market_data_candidate": "tiingo_eod_pending_token",
+  "primary_market_data_candidate": "ALPACA_SIP_AND_TIINGO_EOD_SAMPLE_VERIFIED_PRODUCTION_SOURCE_NOT_FROZEN",
   "primary_fundamental_candidate": "UNDECIDED_PENDING_DEFINITIONS_SAMPLE",
   "filing_provenance": "sec_edgar_companyfacts",
   "classification": {
     "status": "UNRESOLVED_OR_LOCAL_PROXY_ONLY",
     "original_taxonomy_equivalence": false
   },
-  "alpaca_role": "OPTIONAL_FUTURE_EXECUTION_AND_QUOTE_VALIDATION",
-  "allow_proxy_fields": false,
+  "alpaca_role": "HISTORICAL_SAMPLE_VERIFIED_AND_FUTURE_EXECUTION_QUOTE_CANDIDATE",
+  "allow_proxy_fields": true,
   "proxy_id_prefix": "local_proxy__",
   "numeric_parity_required_before_certification": true,
-  "complete_library_status": "BLOCKED",
+  "complete_library_status": "ALL_886_DECIDED_6_UNIQUE_CANDIDATES_PARTIAL",
   "performance_selection_allowed_in_t2": false,
   "validation_holdout_access_allowed_in_t2": false,
-  "phase_completion_status": "PARTIAL_REAL_DATA_AND_BRAIN_SETTINGS_UNVERIFIED",
-  "proxy_policy": "EXPLICIT_LOCAL_VARIANT_REQUIRED"
+  "phase_completion_status": "T2B_DIAGNOSTIC_LIBRARY_BUILT_RESEARCH_NOT_ELIGIBLE",
+  "proxy_policy": "PERFORMANCE_BLIND_HYPOTHESIS_CARD_LIMITED_V1",
+  "project_factor_library": "private/project_factor_library/v10/project_factor_library.json",
+  "project_factor_library_status": "6_COMPUTE_VERIFIED_880_DEFERRED",
+  "automatic_proxy_release_activation": false
 }

@@ -15,12 +15,12 @@ from .signals import combine_equal_weight
 from .universe import session_bounds
 
 
-def run_workflow(export, catalog, alpha_id, output, *, mode='synthetic'):
+def run_workflow(export, catalog, alpha_id, output, *, mode='synthetic', feed='sip'):
     output=Path(output)
     if output.exists() and any(output.iterdir()):
         raise FileExistsError('OUTPUT_DIRECTORY_NOT_EMPTY')
     output.mkdir(parents=True,exist_ok=True)
-    if mode not in {'synthetic','tiingo'}:
+    if mode not in {'synthetic','tiingo','alpaca'}:
         raise ValueError('UNSUPPORTED_MODE')
     report={'status':'RUNNING','mode':mode,'brain_equivalent':False,
             'real_market_data_verified':False,'historical_pit_verified':False,
@@ -64,7 +64,30 @@ def run_workflow(export, catalog, alpha_id, output, *, mode='synthetic'):
     dates=pd.DatetimeIndex(dates)
     fetched=pd.Timestamp.now(tz='UTC')
     arrays={}
-    if mode=='tiingo':
+    if mode=='alpaca':
+        from .alpaca_data import fetch_bars
+        key=os.environ.get('APCA_API_KEY_ID'); secret=os.environ.get('APCA_API_SECRET_KEY')
+        report['feed']=feed
+        if not key or not secret:
+            report['status']='BLOCKED_DATA_AUTH'
+            report['stage_results']['T2_data']='NOT_RUN_AUTH_REQUIRED'
+            report['stage_results']['T3']='NOT_RUN'
+            return finish()
+        for symbol in symbols:
+            try:
+                payload,evidence=fetch_bars(symbol,start,end,key,secret,feed=feed)
+            except ValueError as exc:
+                report['status']='BLOCKED_ALPACA'; report['error_code']=str(exc)
+                return finish()
+            (output/f'raw_{symbol}.json').write_text(json.dumps(payload,indent=2)+'\n')
+            (output/f'alpaca_evidence_{symbol}.json').write_text(json.dumps(evidence,indent=2)+'\n')
+            if not payload:
+                report['status']='BLOCKED_EMPTY_SAMPLE'; return finish()
+            frame=pd.DataFrame(payload)
+            frame.index=pd.DatetimeIndex([session_bounds(x)[1] for x in frame['date']])
+            arrays[symbol]=frame.reindex(dates)
+        report['data_notice']='Explicit '+feed+' feed, historical download; not BRAIN or Tiingo parity.'
+    elif mode=='tiingo':
         token=os.environ.get('TIINGO_API_KEY')
         if not token:
             report.update(status='BLOCKED_DATA_AUTH')
@@ -135,6 +158,6 @@ def run_workflow(export, catalog, alpha_id, output, *, mode='synthetic'):
     report['sessions']=len(dates)
     report['stage_results']['T2_data']='SYNTHETIC_ASOF_PASS' if mode=='synthetic' else 'REAL_HISTORICAL_DOWNLOAD_PASS_NOT_PIT'
     report['stage_results']['T3']='LOCAL_VARIANT_PASS' if all(report['checks'].values()) else 'FAIL'
-    report['real_market_data_verified']=mode=='tiingo'
+    report['real_market_data_verified']=mode in {'tiingo','alpaca'}
     report['status']=('SYNTHETIC_WORKFLOW_PASS' if mode=='synthetic' else 'REAL_DATA_LOCAL_DIAGNOSTIC_PASS') if all(report['checks'].values()) else 'FAIL'
     return finish()

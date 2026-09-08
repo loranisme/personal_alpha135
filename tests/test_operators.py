@@ -8,9 +8,16 @@ from us_equity_alpha.operators import (
     linear_decay,
     price_delta,
     ts_delay,
+    ts_arg_max,
+    ts_arg_min,
+    ts_corr,
+    ts_covariance,
     ts_mean,
     ts_rank,
+    ts_scale,
+    ts_sum,
     ts_std_dev,
+    days_from_last_change,
 )
 
 
@@ -47,3 +54,28 @@ def test_cross_section_and_group_operators_preserve_missing_values():
 def test_linear_decay_weights_recent_values_more_heavily():
     values = pd.DataFrame({"A": [1.0, 2.0]})
     assert linear_decay(values, 2).iloc[-1, 0] == 5.0 / 3.0
+
+
+def test_sum_correlation_and_population_covariance_use_full_windows():
+    left = pd.DataFrame({"A": [1.0, 2.0, 3.0], "B": [1.0, np.nan, 3.0]})
+    right = pd.DataFrame({"A": [2.0, 4.0, 6.0], "B": [1.0, 2.0, 3.0]})
+    assert ts_sum(left, 3).iloc[-1, 0] == 6.0
+    assert np.isclose(ts_corr(left, right, 3).iloc[-1, 0], 1.0)
+    assert np.isclose(ts_covariance(left, right, 3).iloc[-1, 0], 4.0 / 3.0)
+    assert np.isnan(ts_corr(left, right, 3).iloc[-1, 1])
+
+
+def test_arg_extrema_count_sessions_back_from_current_row():
+    values = pd.DataFrame({"A": [5.0, 1.0, 3.0, 9.0]})
+    assert ts_arg_min(values, 4).iloc[-1, 0] == 2.0
+    assert ts_arg_max(values, 4).iloc[-1, 0] == 0.0
+
+
+def test_time_series_scale_and_days_since_change_have_explicit_semantics():
+    values = pd.DataFrame({"A": [2.0, 2.0, 4.0, 4.0], "B": [1.0, 1.0, 1.0, 1.0]})
+    scaled = ts_scale(values, 3)
+    assert scaled.iloc[-1, 0] == 1.0
+    assert np.isnan(scaled.iloc[-1, 1])
+    changed = days_from_last_change(values)
+    assert changed["A"].tolist() == [0.0, 1.0, 0.0, 1.0]
+    assert changed["B"].tolist() == [0.0, 1.0, 2.0, 3.0]
