@@ -1,4 +1,4 @@
-# US Equity Alpha — V4 local factor workflow
+# US Equity Alpha — V4 local factor workflow（on construction)
 
 > **Current canonical artifact (2026-09-15):**
 > `private/project_factor_library/reconstruction-v4/`. It records 886 BRAIN
