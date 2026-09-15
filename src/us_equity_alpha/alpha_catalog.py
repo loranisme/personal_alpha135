@@ -54,12 +54,13 @@ DIAGNOSTIC_EVIDENCE_COLUMNS = (
 
 DIAGNOSTIC_COLUMNS = ("local_factor_id",) + DIAGNOSTIC_VALUE_COLUMNS + DIAGNOSTIC_EVIDENCE_COLUMNS
 _HEX64 = re.compile(r"[0-9a-f]{64}", re.IGNORECASE)
+SUPPORTED_DEFAULT_PROVIDERS = {"alpaca_sip", "tiingo_eod"}
 
 
 def _validate_policy(policy: Mapping[str, Any], library_version: str) -> None:
     if policy.get("library_version") != library_version:
         raise ValueError("CATALOG_POLICY_LIBRARY_VERSION_MISMATCH")
-    if policy.get("default_provider") != "tiingo_eod":
+    if policy.get("default_provider") not in SUPPORTED_DEFAULT_PROVIDERS:
         raise ValueError("UNSUPPORTED_DEFAULT_PROVIDER")
     if tuple(policy.get("diagnostic_value_columns", ())) != DIAGNOSTIC_VALUE_COLUMNS:
         raise ValueError("INVALID_DIAGNOSTIC_POLICY")
@@ -75,6 +76,7 @@ def build_alpha_catalog(
     if library_version != "reconstruction-v4":
         raise ValueError("UNSUPPORTED_BASE_LIBRARY_VERSION")
     _validate_policy(policy, library_version)
+    default_provider = str(policy["default_provider"])
     factors = library.get("factors")
     if not isinstance(factors, list):
         raise ValueError("INVALID_FACTOR_LIBRARY")
@@ -91,10 +93,10 @@ def build_alpha_catalog(
             raise ValueError(f"INVALID_FIELD_BINDINGS:{factor_id}")
         fields = sorted(str(item) for item in bindings)
         reasons: list[str] = []
-        if "tiingo_eod" not in providers:
+        if default_provider not in providers:
             reasons.append(
                 "ALPACA_VWAP_ONLY"
-                if "vwap" in fields and "alpaca_sip" in providers
+                if default_provider == "tiingo_eod" and "vwap" in fields and "alpaca_sip" in providers
                 else "DEFAULT_PROVIDER_UNAVAILABLE"
             )
         if mechanism == "unclassified":

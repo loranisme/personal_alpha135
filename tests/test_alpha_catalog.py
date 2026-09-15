@@ -114,6 +114,21 @@ def test_catalog_preserves_signed_direction_and_exposes_exclusion_reasons():
     assert rows.loc["unknown", "catalog_exclusion_reasons"] == "MECHANISM_UNCLASSIFIED"
 
 
+def test_catalog_can_bind_alpaca_sip_as_default_provider():
+    policy = _policy() | {"default_provider": "alpaca_sip"}
+    library = {
+        "factors": [
+            _factor("dual"),
+            _factor("alpaca-vwap", fields=("close", "vwap"), providers=("alpaca_sip",), mechanism="vwap_deviation"),
+            _factor("tiingo-only", providers=("tiingo_eod",)),
+        ]
+    }
+    rows = build_alpha_catalog(library, policy, library_version="reconstruction-v4").set_index("local_factor_id")
+    assert rows.loc["dual", "default_provider_eligible"]
+    assert rows.loc["alpaca-vwap", "default_provider_eligible"]
+    assert rows.loc["tiingo-only", "catalog_exclusion_reasons"] == "DEFAULT_PROVIDER_UNAVAILABLE"
+
+
 def test_diagnostic_view_is_read_only_for_catalog_decisions_and_preserves_missing():
     catalog = build_alpha_catalog(
         {"factors": [_factor("classified"), _factor("other", mechanism="realized_risk")]},

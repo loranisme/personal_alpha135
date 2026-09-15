@@ -164,6 +164,21 @@ def test_same_mechanism_freezes_with_warning_and_equal_weights(tmp_path):
     assert json.loads(output.read_text(encoding="utf-8"))["content_sha256"] == result["content_sha256"]
 
 
+def test_active_pool_freezes_with_alpaca_sip_provider(tmp_path):
+    catalog_policy = _catalog_policy() | {"default_provider": "alpaca_sip"}
+    pool_policy = _pool_policy() | {"default_provider": "alpaca_sip"}
+    catalog = build_catalog_review_view(
+        build_alpha_catalog(_library(), catalog_policy, library_version="reconstruction-v4"),
+        None,
+        catalog_policy,
+    )
+    review = tmp_path / "review.xlsx"
+    build_active_pool_review(catalog, _coverage(), None, pool_policy, review)
+    _include_first_six(review)
+    result = freeze_active_pool(review, _library(), "b" * 64, pool_policy, tmp_path / "pool.json")
+    assert result["provider"] == "alpaca_sip"
+
+
 def test_duplicate_family_remains_a_hard_blocker(tmp_path):
     library = _library(duplicate_family=True)
     review = tmp_path / "review.xlsx"

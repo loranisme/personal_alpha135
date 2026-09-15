@@ -7,21 +7,21 @@ def build_personal_targets(ranking,universe,policy):
     required={"security_id","composite_score"}
     if not required<=set(ranking): raise ValueError("RANKING_FIELDS_MISSING")
     if not {"security_id","sector"}<=set(universe): raise ValueError("UNIVERSE_FIELDS_MISSING")
-    ranked=ranking.merge(universe[["security_id","sector"]],on="security_id",how="inner",validate="one_to_one")
+    display_columns=[column for column in ("ticker","exchange","sector","industry","latest_raw_close","adv60") if column in universe.columns]
+    ranked=ranking.merge(universe[["security_id",*display_columns]],on="security_id",how="inner",validate="one_to_one")
     ranked=ranked.dropna(subset=["composite_score"]).sort_values(["composite_score","security_id"],ascending=[False,True],kind="stable")
     k=math.ceil(len(ranked)*float(policy["top_fraction"])); weight=float(policy["invested_weight"])/k
     if weight>float(policy["max_single_name_weight"])+1e-12: raise ValueError("SINGLE_NAME_CAP_INCOMPATIBLE")
     selected=[]; sector_weight={};warnings=[]
-    classification_complete=not ranked.sector.isna().any()
-    if not classification_complete:
-        warnings.append("SECTOR_CONSTRAINT_UNAVAILABLE")
-        selected=ranked.head(k).to_dict("records")
-    else:
-        for row in ranked.to_dict("records"):
-            sector=row.get("sector")
-            if sector_weight.get(sector,0)+weight<=float(policy["max_sector_weight"])+1e-12:
-                selected.append(row);sector_weight[sector]=sector_weight.get(sector,0)+weight
-            if len(selected)==k: break
+    for row in ranked.to_dict("records"):
+        sector=row.get("sector")
+        if pd.isna(sector):
+            selected.append(row)
+            if "SECTOR_CONSTRAINT_UNAVAILABLE" not in warnings:
+                warnings.append("SECTOR_CONSTRAINT_UNAVAILABLE")
+        elif sector_weight.get(sector,0)+weight<=float(policy["max_sector_weight"])+1e-12:
+            selected.append(row);sector_weight[sector]=sector_weight.get(sector,0)+weight
+        if len(selected)==k: break
     if len(selected)<k: raise ValueError("SECTOR_CAP_CANNOT_FILL_TARGET_COUNT")
     targets=pd.DataFrame(selected).assign(target_weight=weight)
     targets["rank"]=range(1,len(targets)+1)

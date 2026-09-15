@@ -33,12 +33,13 @@ CONFLICT_COLUMNS = (
     "input_hash",
 )
 _HEX64 = re.compile(r"[0-9a-f]{64}", re.IGNORECASE)
+SUPPORTED_DEFAULT_PROVIDERS = {"alpaca_sip", "tiingo_eod"}
 
 
 def _validate_policy(policy: Mapping[str, Any]) -> None:
     if int(policy.get("minimum_factors", 0)) != 6 or int(policy.get("maximum_factors", 0)) != 8:
         raise ValueError("INVALID_ACTIVE_POOL_SIZE_POLICY")
-    if policy.get("default_provider") != "tiingo_eod":
+    if policy.get("default_provider") not in SUPPORTED_DEFAULT_PROVIDERS:
         raise ValueError("UNSUPPORTED_ACTIVE_POOL_PROVIDER")
     correlation = float(policy.get("absolute_score_correlation_warning", -1))
     overlap = float(policy.get("top_decile_overlap_warning", -1))
@@ -312,6 +313,7 @@ def freeze_active_pool(
         raise ValueError("INCLUDE_COMMENT_REQUIRED")
 
     indexed = {factor.get("local_factor_id"): factor for factor in library.get("factors", [])}
+    provider = str(policy["default_provider"])
     selected_rows: list[dict[str, Any]] = []
     for row in selected.to_dict("records"):
         factor_id = row["local_factor_id"]
@@ -326,7 +328,7 @@ def freeze_active_pool(
             raise ValueError("READ_ONLY_REVIEW_FIELDS_CHANGED")
         if (
             factor.get("build_status") != "COMPUTE_VERIFIED"
-            or "tiingo_eod" not in factor.get("allowed_providers", [])
+            or provider not in factor.get("allowed_providers", [])
             or mechanism == "unclassified"
         ):
             raise ValueError("FACTOR_NOT_DEFAULT_PROVIDER_ELIGIBLE")
@@ -378,7 +380,7 @@ def freeze_active_pool(
     ]
     identity = {
         "v4_manifest_sha256": manifest_sha256,
-        "provider": "tiingo_eod",
+        "provider": provider,
         "factor_ids": [row["local_factor_id"] for row in selected_rows],
         "comments": [row["comment"] for row in selected_rows],
     }
@@ -389,7 +391,7 @@ def freeze_active_pool(
         "active_pool_id": active_pool_id,
         "library_version": "reconstruction-v4",
         "v4_manifest_sha256": manifest_sha256,
-        "provider": "tiingo_eod",
+        "provider": provider,
         "selected_factors": selected_rows,
         "decision_list": decision_list,
         "warnings": warnings,

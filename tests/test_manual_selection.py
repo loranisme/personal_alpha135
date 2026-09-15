@@ -39,3 +39,15 @@ def test_missing_classification_keeps_paper_targets_with_warning():
     assert len(result["target_portfolio"])==51
     assert result["warnings"]==["SECTOR_CONSTRAINT_UNAVAILABLE"]
     assert result["portfolio_status"]=="PAPER_ONLY"
+
+def test_missing_classification_outside_selected_names_keeps_sector_constraints():
+    universe=_universe();universe.loc[499,"sector"]=None
+    result=build_personal_targets(_ranking(),universe,_policy())
+    assert result["warnings"]==[]
+    assert result["portfolio_status"]=="CONSTRAINTS_APPLIED"
+
+def test_core_outputs_preserve_available_trading_identifiers():
+    universe=_universe().assign(ticker=[f"T{i:04d}" for i in range(500)],exchange="NASDAQ",industry="Software")
+    result=build_personal_targets(_ranking(),universe,_policy())
+    assert result["stock_ranking"].loc[0,["ticker","exchange","industry"]].tolist()==["T0000","NASDAQ","Software"]
+    assert result["target_portfolio"].loc[0,"ticker"]=="T0000"
