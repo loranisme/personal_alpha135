@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "top_fraction": 0.1,
+  "invested_weight": 0.95,
+  "minimum_cash": 0.05,
+  "max_single_name_weight": 0.02,
+  "max_sector_weight": 0.25,
+  "max_account_age_seconds": 60,
+  "rebalance": "WEEKLY_FIRST_SESSION"
+}

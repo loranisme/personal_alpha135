@@ -151,3 +151,34 @@ def _write(bundle,output_root,execution):
 
 def write_signal_report(bundle,output_root): return _write(bundle,output_root,False)
 def write_execution_report(bundle,output_root): return _write(bundle,output_root,True)
+
+
+def write_selection_review(bundle, output_dir):
+    """Write and reopen the V5 core selection bundle and optional helper."""
+    output=Path(output_dir)
+    if output.exists(): raise FileExistsError('OUTPUT_DIRECTORY_EXISTS')
+    output.mkdir(parents=True)
+    tables=[('data_checks','Data Checks','data_checks.csv'),('alpha_scores','Alpha Scores','alpha_scores.parquet'),('stock_ranking','Stock Ranking','stock_ranking.csv'),('target_portfolio','Target Portfolio','target_portfolio.csv'),('blocked_items','Blocked Items','blocked_items.csv')]
+    if bundle.get('execution_helper_status')=='EXECUTION_HELPER_READY': tables.append(('manual_rebalance_draft','Manual Rebalance Draft','manual_rebalance_draft.csv'))
+    paths={}
+    with pd.ExcelWriter(output/'selection_review.xlsx',engine='openpyxl') as writer:
+        for key,sheet,name in tables:
+            frame=bundle.get(key,pd.DataFrame())
+            path=output/name
+            if path.suffix=='.parquet': frame.to_parquet(path,index=False)
+            else: frame.to_csv(path,index=False)
+            frame.to_excel(writer,sheet_name=sheet,index=False)
+            paths[key]=path
+    workbook=load_workbook(output/'selection_review.xlsx')
+    expected=[x[1] for x in tables]
+    if workbook.sheetnames!=expected: raise ValueError('SELECTION_WORKBOOK_SHEETS_MISMATCH')
+    for key,sheet,name in tables:
+        path=output/name
+        frame=pd.read_parquet(path) if path.suffix=='.parquet' else pd.read_csv(path)
+        if workbook[sheet].max_row-1 != len(frame): raise ValueError('SELECTION_ARTIFACT_ROW_MISMATCH')
+    paths['workbook']=output/'selection_review.xlsx'
+    files={p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in output.iterdir() if p.is_file()}
+    manifest={'schema_version':1,'status':bundle.get('status'),'execution_helper_status':bundle.get('execution_helper_status','NOT_REQUESTED'),'files':files,'live_orders_submitted':0}
+    (output/'manifest.json').write_text(json.dumps(manifest,indent=2,sort_keys=True)+'\n')
+    paths['manifest']=output/'manifest.json'
+    return paths
