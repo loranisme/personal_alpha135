@@ -1,0 +1,590 @@
+# V5 Lite Personal Alpha Library and Daily Selection Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Turn the immutable V4 library into a configuration-driven personal stock-selection workflow that creates an Alpha Catalog, a human-approved Active Pool, a current 500-1000 stock universe, daily rankings, manual rebalance drafts and an append-only forward paper log.
+
+**Architecture:** V4 remains a read-only base. New focused modules build catalog and pool metadata, filter a current liquid universe, calculate only frozen active factors, generate equal-weight Top-10% targets, and record paper events. The main path produces review artifacts and contains no broker transport or ML dependency.
+
+**Tech Stack:** Python 3.12, pandas, pyarrow, openpyxl, exchange-calendars, existing Alphalens/vectorbt dependencies for optional diagnostics, pytest, JSON/CSV/Parquet/XLSX/SQLite.
+
+**Spec:** `docs/superpowers/specs/2026-09-15-v5-lite-alpha-selection-design.md`
+
+## Global Constraints
+
+- Never modify `private/project_factor_library/reconstruction-v4/**`.
+- Preserve all 135 V4 signed expressions with `direction=1`; never infer a flip from historical performance.
+- Default Active Pool candidates must support `tiingo_eod`; 15 Alpaca-only VWAP factors stay in the catalog but are not default candidates.
+- Active Pool size is 6-8, with no duplicate primary mechanism or `family_id`.
+- Current universe contains 500-1000 securities; it is never labeled historical PIT.
+- Composite uses equal-weight cross-sectional percentile ranks and requires every active score per stock.
+- Portfolio uses Top 10%, 5% minimum cash, 2% single-name cap and equal weight.
+- Outputs are manual review artifacts; no broker order/cancel transport is permitted.
+- ML modules, model artifacts and ML candidate schemas are outside this plan.
+- Preserve `live_enabled=false`, `DIAGNOSTIC_ONLY` and existing R2 governance code.
+- Every task uses red-green TDD and ends with a focused commit.
+
+---
+
+### Task 1: Build the deterministic V4 Alpha Catalog
+
+**Files:**
+- Create: `src/us_equity_alpha/alpha_catalog.py`
+- Create: `tests/test_alpha_catalog.py`
+- Modify: `src/us_equity_alpha/proxy_converter.py`
+- Modify: `src/us_equity_alpha/cli.py`
+- Create: `config/alpha_catalog_policy.json`
+
+**Interfaces:**
+- Consumes: `Mapping[str, Any]` loaded from V4 `project_factor_library.json`; V4 manifest SHA-256.
+- Produces: `required_history_sessions(expression, settings) -> int`, `build_alpha_catalog(library, policy, *, library_version) -> pandas.DataFrame` and `write_alpha_catalog(library_path, manifest_path, policy_path, output_dir) -> dict[str, Path]`.
+- CLI: `us-equity-alpha build-alpha-catalog --library PATH --manifest PATH --policy PATH --output DIR`.
+
+- [ ] **Step 1: Write catalog contract tests**
+
+```python
+def test_catalog_accounts_for_every_formula_and_preserves_signed_direction():
+    frame = build_alpha_catalog(sample_library(135), catalog_policy(), library_version="reconstruction-v4")
+    assert len(frame) == frame.local_factor_id.nunique() == 135
+    assert set(frame.direction) == {1}
+    assert set(frame.build_status) == {"COMPUTE_VERIFIED"}
+
+
+def test_vwap_and_unclassified_factors_remain_visible_but_not_default_eligible():
+    frame = build_alpha_catalog(library_with_vwap_and_unclassified(), catalog_policy(), library_version="reconstruction-v4")
+    vwap = frame.set_index("local_factor_id").loc["vwap_factor"]
+    unknown = frame.set_index("local_factor_id").loc["unknown_factor"]
+    assert not vwap.default_provider_eligible
+    assert "ALPACA_VWAP_ONLY" in vwap.catalog_exclusion_reasons
+    assert not unknown.default_provider_eligible
+    assert "MECHANISM_UNCLASSIFIED" in unknown.catalog_exclusion_reasons
+
+
+def test_catalog_uses_expression_delay_and_decay_for_required_history():
+    factor = one_factor_library(
+        expression="ts_mean(close, 20)",
+        settings={"delay": 1, "decay": 4},
+    )
+    frame = build_alpha_catalog(factor, catalog_policy(), library_version="reconstruction-v4")
+    assert frame.loc[0, "warmup_sessions"] == 23
+```
+
+- [ ] **Step 2: Run the new test and confirm the missing-module failure**
+
+Run: `PYTHONPATH=src .venv/bin/python -m pytest tests/test_alpha_catalog.py -q`
+
+Expected: collection fails with `ModuleNotFoundError: us_equity_alpha.alpha_catalog`.
+
+- [ ] **Step 3: Expose the existing history requirement calculation**
+
+Add a public wrapper in `proxy_converter.py` around the existing `_node_required_history` logic. It parses the signed local expression, adds factor delay and the extra decay observations, and raises `INVALID_FACTOR_EXPRESSION` for syntax it cannot parse.
+
+```python
+def required_history_sessions(expression, settings):
+    try:
+        tree = ast.parse(expression, mode="exec")
+    except SyntaxError as exc:
+        raise ValueError("INVALID_FACTOR_EXPRESSION") from exc
+    return (
+        _node_required_history(tree)
+        + int(settings.get("delay", 0))
+        + max(int(settings.get("decay", 0)) - 1, 0)
+    )
+```
+
+- [ ] **Step 4: Implement normalized catalog rows**
+
+```python
+CATALOG_COLUMNS = (
+    "local_factor_id", "library_version", "expression_hash", "family_id",
+    "mechanism_tag", "mechanism_status", "semantic_status", "required_fields",
+    "allowed_providers", "default_provider_eligible", "direction",
+    "direction_basis", "build_status", "usage_status", "source_alpha_count",
+    "warmup_sessions", "catalog_exclusion_reasons",
+)
+
+
+def build_alpha_catalog(library, policy, *, library_version):
+    if library_version != "reconstruction-v4":
+        raise ValueError("UNSUPPORTED_BASE_LIBRARY_VERSION")
+    rows = []
+    for factor in library["factors"]:
+        tags = factor.get("economic_description", {}).get("mechanism_tags", [])
+        tag = tags[0] if tags else "unclassified"
+        providers = sorted(factor.get("allowed_providers", []))
+        fields = sorted(factor.get("field_bindings", {}))
+        reasons = []
+        if "tiingo_eod" not in providers:
+            reasons.append("ALPACA_VWAP_ONLY" if "vwap" in fields else "DEFAULT_PROVIDER_UNAVAILABLE")
+        if tag == "unclassified":
+            reasons.append("MECHANISM_UNCLASSIFIED")
+        if factor.get("build_status") != "COMPUTE_VERIFIED":
+            reasons.append("NOT_COMPUTE_VERIFIED")
+        rows.append({
+            "local_factor_id": factor["local_factor_id"],
+            "library_version": library_version,
+            "expression_hash": factor["expression_hash"],
+            "family_id": factor["family_id"],
+            "mechanism_tag": tag,
+            "mechanism_status": "CLASSIFIED" if tag != "unclassified" else "UNCLASSIFIED",
+            "semantic_status": factor["semantic_status"],
+            "required_fields": ",".join(fields),
+            "allowed_providers": ",".join(providers),
+            "default_provider_eligible": not reasons,
+            "direction": 1,
+            "direction_basis": factor["direction_basis"],
+            "build_status": factor["build_status"],
+            "usage_status": "LIBRARY_ONLY",
+            "source_alpha_count": len(factor.get("source_alpha_ids", [])),
+            "warmup_sessions": required_history_sessions(factor["expression"], factor["settings"]),
+            "catalog_exclusion_reasons": ",".join(reasons),
+        })
+    result = pd.DataFrame(rows, columns=CATALOG_COLUMNS).sort_values("local_factor_id")
+    if len(result) != result.local_factor_id.nunique():
+        raise ValueError("DUPLICATE_LOCAL_FACTOR_ID")
+    return result.reset_index(drop=True)
+```
+
+- [ ] **Step 5: Implement canonical output and CLI dispatch**
+
+Write `alpha_catalog.csv`, `alpha_catalog.parquet`, `catalog_summary.json` and `manifest.json`. Hash the input library manifest, policy and every output. Refuse a non-empty output directory. Add the CLI parser and a dispatch branch that returns exit code 2 for validation errors.
+
+- [ ] **Step 6: Run focused tests**
+
+Run: `PYTHONPATH=src .venv/bin/python -m pytest tests/test_alpha_catalog.py tests/test_factor_library.py tests/test_contracts.py -q`
+
+Expected: all selected tests pass.
+
+- [ ] **Step 7: Commit Task 1**
+
+```bash
+git add src/us_equity_alpha/alpha_catalog.py src/us_equity_alpha/proxy_converter.py src/us_equity_alpha/cli.py config/alpha_catalog_policy.json tests/test_alpha_catalog.py
+git commit -m "Add deterministic V4 alpha catalog"
+```
+
+### Task 2: Generate and freeze the human-reviewed Active Pool
+
+**Files:**
+- Create: `src/us_equity_alpha/active_pool.py`
+- Create: `tests/test_active_pool.py`
+- Modify: `src/us_equity_alpha/cli.py`
+- Create: `config/active_pool_policy.json`
+
+**Interfaces:**
+- Consumes: Alpha Catalog DataFrame, structural metrics with the exact columns `local_factor_id,coverage,turnover`, optional factor-score panels, editable `Decision Template` sheet and V4 manifest hash.
+- Produces: `build_active_pool_review(catalog, metrics, scores, policy, output_path) -> dict`, `freeze_active_pool(review_path, library, manifest_sha256, policy, output_path) -> dict`.
+- CLI: `build-active-pool-review` and `freeze-active-pool`.
+
+- [ ] **Step 1: Write shortlist and freeze rejection tests**
+
+```python
+def test_shortlist_never_uses_return_columns_and_keeps_one_candidate_per_mechanism():
+    review = structural_shortlist(catalog_fixture(), metrics_fixture(), pool_policy())
+    assert review.groupby("mechanism_tag").head(1).local_factor_id.tolist() == review.local_factor_id.tolist()
+
+
+def test_shortlist_rejects_return_columns():
+    metrics = metrics_fixture().assign(backtest_return=0.10)
+    with pytest.raises(ValueError, match="INVALID_STRUCTURAL_METRICS_SCHEMA"):
+        structural_shortlist(catalog_fixture(), metrics, pool_policy())
+
+
+@pytest.mark.parametrize("mutation,error", [
+    ("five_factors", "ACTIVE_POOL_SIZE"),
+    ("duplicate_family", "DUPLICATE_FAMILY"),
+    ("duplicate_mechanism", "DUPLICATE_MECHANISM"),
+    ("changed_direction", "DIRECTION_MUST_REMAIN_ONE"),
+    ("missing_comment", "INCLUDE_COMMENT_REQUIRED"),
+    ("vwap_factor", "FACTOR_NOT_DEFAULT_PROVIDER_ELIGIBLE"),
+    ("high_correlation_pair", "UNRESOLVED_FACTOR_CONFLICT"),
+])
+def test_freezer_rejects_invalid_human_decisions(mutation, error, tmp_path):
+    review = decision_workbook(mutation, tmp_path)
+    with pytest.raises(ValueError, match=error):
+        freeze_active_pool(review, sample_library(), "a" * 64, pool_policy(), tmp_path / "pool.json")
+```
+
+- [ ] **Step 2: Run the new test and confirm the missing-module failure**
+
+Run: `PYTHONPATH=src .venv/bin/python -m pytest tests/test_active_pool.py -q`
+
+Expected: collection fails with `ModuleNotFoundError: us_equity_alpha.active_pool`.
+
+- [ ] **Step 3: Implement structural shortlist ordering**
+
+```python
+def structural_shortlist(catalog, metrics, policy):
+    eligible = catalog[catalog.default_provider_eligible].copy()
+    required_metric_columns = {"local_factor_id", "coverage", "turnover"}
+    if set(metrics.columns) != required_metric_columns:
+        raise ValueError("INVALID_STRUCTURAL_METRICS_SCHEMA")
+    eligible = eligible.merge(metrics, on="local_factor_id", how="left", validate="one_to_one")
+    eligible["dual_provider"] = eligible.allowed_providers.str.contains("alpaca_sip") & eligible.allowed_providers.str.contains("tiingo_eod")
+    eligible["semantic_order"] = eligible.semantic_status.map({"FULL_INTENT": 0, "PARTIAL_INTENT": 1}).fillna(2)
+    eligible = eligible.sort_values(
+        ["mechanism_tag", "dual_provider", "coverage", "semantic_order", "turnover", "warmup_sessions", "local_factor_id"],
+        ascending=[True, False, False, True, True, True, True],
+        kind="stable",
+    )
+    return eligible.groupby("mechanism_tag", sort=True).head(1).reset_index(drop=True)
+```
+
+The structural metrics table contains only coverage and turnover. Pairwise score correlation and Top-10% overlap are calculated from the separately supplied score panels and written to `Correlation Conflicts`. Each workbook records the score-panel universe, date range, provider and input hash. A score panel from the existing 50-stock engineering sample may support redundancy review only and must be labeled `ENGINEERING_50`; it is not evidence of prediction, portfolio performance or historical PIT validity. Return, IC, Sharpe and drawdown columns are rejected from the initial structural shortlist.
+
+- [ ] **Step 4: Write the review workbook**
+
+Create the exact sheets `Family Shortlist`, `Correlation Conflicts`, and `Decision Template`. Protect structural columns in the first two sheets. In `Decision Template`, add data validation containing `INCLUDE,WATCHLIST,REJECT`; allow edits only to `decision` and `comment`. Reopen the workbook with openpyxl and assert sheet names, row counts and validation rules before returning success.
+
+- [ ] **Step 5: Implement immutable Active Pool freezing**
+
+Read the workbook twice: once for the structural snapshot and once for decisions. Validate 6-8 includes, unique factor/family/mechanism, default-provider eligibility, unchanged direction and non-empty comments. For included pairs, reject an unresolved conflict when absolute score correlation exceeds 0.80 or Top-10% overlap exceeds 0.70. Reject an existing output path. Set `provider=tiingo_eod`, assign equal `Decimal` weights, serialize with sorted keys, compute `content_sha256` excluding that field, then persist it.
+
+- [ ] **Step 6: Run focused tests**
+
+Run: `PYTHONPATH=src .venv/bin/python -m pytest tests/test_active_pool.py tests/test_alpha_catalog.py -q`
+
+Expected: all selected tests pass.
+
+- [ ] **Step 7: Commit Task 2**
+
+```bash
+git add src/us_equity_alpha/active_pool.py src/us_equity_alpha/cli.py config/active_pool_policy.json tests/test_active_pool.py
+git commit -m "Add human-reviewed active alpha pools"
+```
+
+### Task 3: Build the current 500-1000 security liquid universe
+
+**Files:**
+- Create: `src/us_equity_alpha/current_universe.py`
+- Create: `tests/test_current_universe.py`
+- Create: `scripts/download_current_universe.py`
+- Modify: `src/us_equity_alpha/alpaca_data.py`
+- Modify: `src/us_equity_alpha/cli.py`
+
+**Interfaces:**
+- Consumes: current asset metadata DataFrame, `dict[str, DataFrame]` unadjusted daily bars, timezone-aware as-of, optional current classification DataFrame.
+- Produces: `build_current_liquid_universe(assets, bars, as_of, policy) -> tuple[pd.DataFrame, dict]` and a hashed snapshot directory.
+- CLI: `build-current-universe --assets PATH --bars DIR --classifications PATH --as-of ISO8601 --output DIR`.
+
+- [ ] **Step 1: Write exact universe boundary tests**
+
+```python
+def test_universe_blocks_499_accepts_500_and_caps_1001_at_1000():
+    with pytest.raises(ValueError, match="BLOCKED_INSUFFICIENT_UNIVERSE"):
+        build_current_liquid_universe(*universe_inputs(499), as_of=cutoff(), policy=policy())
+    accepted, evidence = build_current_liquid_universe(*universe_inputs(500), as_of=cutoff(), policy=policy())
+    assert len(accepted) == evidence["eligible_count"] == 500
+    capped, evidence = build_current_liquid_universe(*universe_inputs(1001), as_of=cutoff(), policy=policy())
+    assert len(capped) == 1000
+    assert capped.adv60.is_monotonic_decreasing
+
+
+def test_current_snapshot_never_claims_historical_pit():
+    _, evidence = build_current_liquid_universe(*universe_inputs(500), as_of=cutoff(), policy=policy())
+    assert evidence["historical_pit_verified"] is False
+    assert evidence["historical_reuse_label"] == "SURVIVORSHIP_BIASED_DIAGNOSTIC"
+```
+
+- [ ] **Step 2: Run the new test and confirm the missing-module failure**
+
+Run: `PYTHONPATH=src .venv/bin/python -m pytest tests/test_current_universe.py -q`
+
+Expected: collection fails with `ModuleNotFoundError: us_equity_alpha.current_universe`.
+
+- [ ] **Step 3: Implement asset and liquidity filters**
+
+Reuse `security_master.liquidity_eligible` for the 252-session, USD 5 and ADV60 rules. Reject unknown security types, inactive assets, non-U.S. exchanges, ADR/ETF/fund/preferred/warrant/unit/OTC records, duplicate security IDs and bars without explicit source/availability metadata.
+
+- [ ] **Step 4: Implement deterministic cap and evidence**
+
+Sort eligible rows by `adv60 DESC, security_id ASC`, cap at 1000, and hash the canonical CSV bytes. Emit exclusion rows with one or more explicit reason codes, provider coverage, as-of timestamp, `historical_pit_verified=false` and `SURVIVORSHIP_BIASED_DIAGNOSTIC`.
+
+- [ ] **Step 5: Add credential-safe snapshot acquisition**
+
+Extend `alpaca_data.py` with a read-only current asset metadata request. `scripts/download_current_universe.py` reads Alpaca and Tiingo credentials only from environment variables, stores no headers or credentials, resumes per-symbol Tiingo EOD downloads, writes raw-response hashes, and stops without a partial eligible universe when fewer than 500 securities have complete input.
+
+- [ ] **Step 6: Run focused tests**
+
+Run: `PYTHONPATH=src .venv/bin/python -m pytest tests/test_current_universe.py tests/test_security_master_policy_v2.py tests/test_alpaca_adapter.py tests/test_market_data.py -q`
+
+Expected: all selected tests pass.
+
+- [ ] **Step 7: Commit Task 3**
+
+```bash
+git add src/us_equity_alpha/current_universe.py src/us_equity_alpha/alpaca_data.py src/us_equity_alpha/cli.py scripts/download_current_universe.py tests/test_current_universe.py
+git commit -m "Add current liquid US selection universe"
+```
+
+### Task 4: Generalize active-factor calculation and composite ranking
+
+**Files:**
+- Create: `src/us_equity_alpha/daily_selection.py`
+- Create: `tests/test_daily_selection.py`
+- Modify: `src/us_equity_alpha/factor_library.py`
+
+**Interfaces:**
+- Consumes: V4 library, frozen Active Pool JSON, provider field panels, current universe DataFrame and signal session.
+- Produces: `calculate_active_scores(library, active_pool, provider, inputs, universe, session) -> SelectionScores` where `SelectionScores` contains raw panels, ranked panels, composite, coverage table and blockers.
+
+- [ ] **Step 1: Write computation isolation and coverage tests**
+
+```python
+def test_only_active_factors_are_computed_and_spy_is_never_ranked(monkeypatch):
+    result = calculate_active_scores(library(), pool_of_six(), "tiingo_eod", fields_with_spy(), universe_500(), session())
+    assert set(result.factor_panels) == set(pool_of_six()["factor_ids"])
+    assert "SPY" not in result.composite.index
+    assert len(result.composite.dropna()) == 500
+
+
+def test_incomplete_active_factor_coverage_blocks_targets():
+    result = calculate_active_scores(library(), pool_of_six(), "tiingo_eod", fields_at_94_percent(), universe_500(), session())
+    assert result.status == "BLOCKED_DATA"
+    assert "ACTIVE_FACTOR_COVERAGE_BELOW_95_PERCENT" in result.blockers
+```
+
+- [ ] **Step 2: Run the new test and confirm the missing-module failure**
+
+Run: `PYTHONPATH=src .venv/bin/python -m pytest tests/test_daily_selection.py -q`
+
+Expected: collection fails with `ModuleNotFoundError: us_equity_alpha.daily_selection`.
+
+- [ ] **Step 3: Add a generic factor list adapter**
+
+Keep the hard-coded V4 three-factor sample untouched. Add a generic adapter in `factor_library.py` that validates the Active Pool content hash, provider binding, equal weights and factor IDs, then calls `compute_registry_factors` only for those IDs.
+
+- [ ] **Step 4: Implement percentile ranks and composite completeness**
+
+```python
+ranked = {
+    factor_id: panel.loc[session, eligible_ids].rank(pct=True, method="average")
+    for factor_id, panel in factor_panels.items()
+}
+rank_frame = pd.DataFrame(ranked)
+complete = rank_frame.notna().all(axis=1)
+composite = rank_frame.mean(axis=1).where(complete)
+```
+
+Calculate per-factor eligible coverage before applying the complete-row mask. Block below 95% factor coverage or below 500 complete scores. Stable-sort scores descending and security ID ascending.
+
+- [ ] **Step 5: Run focused tests**
+
+Run: `PYTHONPATH=src .venv/bin/python -m pytest tests/test_daily_selection.py tests/test_factor_library.py tests/test_v4_workflow_sample.py -q`
+
+Expected: all selected tests pass and the fixed V4 sample behavior remains unchanged.
+
+- [ ] **Step 6: Commit Task 4**
+
+```bash
+git add src/us_equity_alpha/daily_selection.py src/us_equity_alpha/factor_library.py tests/test_daily_selection.py
+git commit -m "Add active-pool daily composite calculation"
+```
+
+### Task 5: Produce Top-10% targets and manual rebalance drafts
+
+**Files:**
+- Create: `src/us_equity_alpha/manual_selection.py`
+- Create: `tests/test_manual_selection.py`
+- Create: `tests/test_reporting.py`
+- Modify: `src/us_equity_alpha/reporting.py`
+- Create: `config/personal_selection_policy.json`
+
+**Interfaces:**
+- Consumes: ranked scores, eligible universe, current positions, reference prices, account NAV and selection policy.
+- Produces: `build_personal_targets(...) -> dict[str, pd.DataFrame]` with data checks, ranking, targets, draft and blockers; `write_selection_review(bundle, output_dir) -> dict[str, Path]`.
+
+- [ ] **Step 1: Write portfolio and no-order tests**
+
+```python
+def test_500_ranked_stocks_create_50_equal_weight_targets_and_cash_floor():
+    bundle = build_personal_targets(ranking_500(), universe_500(), empty_positions(), prices_500(), 100000, policy())
+    stocks = bundle["target_portfolio"].query("security_id != 'CASH'")
+    assert len(stocks) == 50
+    assert stocks.target_weight.nunique() == 1
+    assert stocks.target_weight.max() <= 0.02
+    assert bundle["target_portfolio"].query("security_id == 'CASH'").target_weight.iloc[0] >= 0.05
+
+
+def test_manual_draft_contains_no_executable_order_fields():
+    bundle = build_personal_targets(ranking_500(), universe_500(), positions(), prices_500(), 100000, policy())
+    draft = bundle["manual_rebalance_draft"]
+    assert set(draft.review_status) == {"REVIEW_REQUIRED"}
+    assert "suggested_trade_shares" in draft
+    assert "approved_trade_shares" not in draft
+    assert "order_id" not in draft
+```
+
+- [ ] **Step 2: Run the new test and confirm the missing-module failure**
+
+Run: `PYTHONPATH=src .venv/bin/python -m pytest tests/test_manual_selection.py -q`
+
+Expected: collection fails with `ModuleNotFoundError: us_equity_alpha.manual_selection`.
+
+- [ ] **Step 3: Implement selection and whole-share targets**
+
+Let `K = ceil(M * 0.10)` and fix the per-stock target weight at `0.95 / K`. Walk the stable score/security-ID ranking, accepting a stock only when its addition keeps its sector weight at or below 25%, until K stocks are selected. Block with `SECTOR_CAP_CANNOT_FILL_TARGET_COUNT` if K cannot be filled. Cap each target at 2%, preserve at least 5% cash after whole-share rounding, and add unused capital to `CASH`. When current classification is incomplete, add `SECTOR_CONSTRAINT_UNAVAILABLE` and retain `PAPER_ONLY` without claiming the sector cap was enforced.
+
+- [ ] **Step 4: Implement manual rebalance differences**
+
+Outer-join target shares and current positions, preserve held securities absent from the new target with target zero, and calculate `suggested_trade_shares = target_shares - current_shares`. Reject stale account timestamps, missing held-security prices and non-integer positions. Set every row to `REVIEW_REQUIRED`.
+
+- [ ] **Step 5: Write and reopen all delivery formats**
+
+Write the six required tables plus `selection_review.xlsx`. Add `tests/test_reporting.py` with CSV/Parquet/XLSX row-count, schema, cash tie-out and workbook-to-machine-table equality cases. Reopen every output artifact and verify those same contracts before writing the manifest.
+
+- [ ] **Step 6: Run focused tests**
+
+Run: `PYTHONPATH=src .venv/bin/python -m pytest tests/test_manual_selection.py tests/test_portfolio.py tests/test_reporting.py -q`
+
+Expected: all selected tests pass.
+
+- [ ] **Step 7: Commit Task 5**
+
+```bash
+git add src/us_equity_alpha/manual_selection.py src/us_equity_alpha/reporting.py config/personal_selection_policy.json tests/test_manual_selection.py tests/test_reporting.py
+git commit -m "Add personal targets and manual rebalance drafts"
+```
+
+### Task 6: Add the append-only Forward Paper Log
+
+**Files:**
+- Create: `src/us_equity_alpha/paper_log.py`
+- Create: `tests/test_paper_log.py`
+
+**Interfaces:**
+- Consumes: completed selection bundle and later five-session reference-return observations.
+- Produces: `PaperLog(path)`, `record_signal(event)`, `settle_signal(event)`, and `export() -> dict`.
+
+- [ ] **Step 1: Write append-only and idempotency tests**
+
+```python
+def test_signal_and_settlement_are_separate_append_only_events(tmp_path):
+    log = PaperLog(tmp_path / "paper.sqlite")
+    log.record_signal(signal_event("s1"))
+    log.settle_signal(settlement_event("s1"))
+    exported = log.export()
+    assert [row["kind"] for row in exported["events"]] == ["SIGNAL", "SETTLEMENT"]
+    assert exported["events"][0]["payload"] == signal_event("s1")
+
+
+def test_duplicate_signal_and_unknown_settlement_are_rejected(tmp_path):
+    log = PaperLog(tmp_path / "paper.sqlite")
+    log.record_signal(signal_event("s1"))
+    with pytest.raises(ValueError, match="DUPLICATE_SIGNAL_ID"):
+        log.record_signal(signal_event("s1"))
+    with pytest.raises(ValueError, match="UNKNOWN_SIGNAL_ID"):
+        log.settle_signal(settlement_event("missing"))
+```
+
+- [ ] **Step 2: Run the new test and confirm the missing-module failure**
+
+Run: `PYTHONPATH=src .venv/bin/python -m pytest tests/test_paper_log.py -q`
+
+Expected: collection fails with `ModuleNotFoundError: us_equity_alpha.paper_log`.
+
+- [ ] **Step 3: Implement the SQLite event journal**
+
+Use a table with `sequence INTEGER PRIMARY KEY AUTOINCREMENT`, `kind`, `signal_id`, `payload`, `created_at`, and a unique partial index for `kind='SIGNAL'`. Validate that signal payloads include pool/universe/config/input hashes, blockers, target hash and `live_orders_submitted=0`. A settlement requires an existing signal and records entry/exit reference, five-session total return or explicit missing reason.
+
+- [ ] **Step 4: Implement deterministic export**
+
+Export ordered JSON events and a flat `paper_summary.csv`. Do not calculate Research Admission, Validation or Release status. Preserve missing outcomes as missing with a reason.
+
+- [ ] **Step 5: Run focused tests**
+
+Run: `PYTHONPATH=src .venv/bin/python -m pytest tests/test_paper_log.py tests/test_evidence.py -q`
+
+Expected: all selected tests pass.
+
+- [ ] **Step 6: Commit Task 6**
+
+```bash
+git add src/us_equity_alpha/paper_log.py tests/test_paper_log.py
+git commit -m "Add append-only forward paper log"
+```
+
+### Task 7: Wire the V5 Lite CLI and run end-to-end acceptance
+
+**Files:**
+- Modify: `src/us_equity_alpha/cli.py`
+- Modify: `src/us_equity_alpha/runtime.py`
+- Create: `scripts/run_v5_lite_selection.py`
+- Create: `tests/test_v5_lite_workflow.py`
+- Modify: `README.md`
+
+**Interfaces:**
+- Consumes: V4 library, Active Pool, current-universe snapshot, daily provider inputs, positions and account snapshot.
+- Produces: one immutable V5 run directory and one appended signal event.
+- CLI: `daily-select --library PATH --active-pool PATH --universe PATH --market-data DIR --positions PATH --account PATH --as-of ISO8601 --output DIR --paper-log PATH`.
+
+- [ ] **Step 1: Write end-to-end blocked and successful cases**
+
+```python
+def test_v5_blocks_without_500_complete_scores_and_writes_no_targets(tmp_path):
+    result = run_v5_lite(v5_fixture(499), tmp_path / "run", tmp_path / "paper.sqlite")
+    assert result["status"] == "BLOCKED_DATA"
+    assert not (tmp_path / "run" / "target_portfolio.csv").exists()
+
+
+def test_v5_valid_input_writes_review_artifacts_and_no_orders(tmp_path):
+    result = run_v5_lite(v5_fixture(500), tmp_path / "run", tmp_path / "paper.sqlite")
+    assert result["status"] == "PAPER_REVIEW_READY"
+    assert result["live_orders_submitted"] == 0
+    assert (tmp_path / "run" / "stock_ranking.csv").is_file()
+    assert (tmp_path / "run" / "manual_rebalance_draft.csv").is_file()
+    assert (tmp_path / "run" / "selection_review.xlsx").is_file()
+```
+
+- [ ] **Step 2: Run the new test and confirm the missing-entrypoint failure**
+
+Run: `PYTHONPATH=src .venv/bin/python -m pytest tests/test_v5_lite_workflow.py -q`
+
+Expected: fails because `run_v5_lite` and the CLI command do not exist.
+
+- [ ] **Step 3: Implement the orchestration script**
+
+Load and hash every input before calculation. Verify V4 and Active Pool manifests, create the current universe, calculate active scores, block before targets on coverage failure, produce review artifacts on success, append the paper signal, then write a self-verifying run manifest. Refuse a pre-existing output directory.
+
+- [ ] **Step 4: Add CLI error mapping**
+
+Map invalid configuration to exit 2, unavailable/insufficient data to exit 4, and successful paper review to exit 0. All failure payloads include stable blocker codes and `live_orders_submitted=0`.
+
+- [ ] **Step 5: Document the operator workflow**
+
+Update README with the exact command sequence: build catalog, generate review workbook, freeze the approved pool, build current universe, run daily selection and settle paper observations. State that ML expansion and historical PIT certification are outside V5 Lite.
+
+- [ ] **Step 6: Run V5 and regression verification**
+
+Run:
+
+```bash
+PYTHONPATH=src .venv/bin/python -m pytest tests/test_alpha_catalog.py tests/test_active_pool.py tests/test_current_universe.py tests/test_daily_selection.py tests/test_manual_selection.py tests/test_paper_log.py tests/test_v5_lite_workflow.py -q
+PYTHONPATH=src .venv/bin/python -m pytest -q --disable-warnings
+git diff --check
+```
+
+Expected: all V5 tests and the entire pre-existing regression suite pass; `git diff --check` exits 0.
+
+- [ ] **Step 7: Run artifact and credential QA**
+
+Generate one synthetic 500-security acceptance run, reopen its CSV/Parquet/XLSX/SQLite outputs, recompute every manifest hash, scan tracked and delivered files for credential patterns, and assert `live_orders_submitted=0` plus absence of broker order IDs.
+
+- [ ] **Step 8: Commit Task 7**
+
+```bash
+git add src/us_equity_alpha/cli.py src/us_equity_alpha/runtime.py scripts/run_v5_lite_selection.py tests/test_v5_lite_workflow.py README.md
+git commit -m "Complete V5 Lite personal selection workflow"
+```
+
+## Final review checklist
+
+- [ ] V4 manifest and all 135 formulas remain byte-identical.
+- [ ] Catalog counts are 135 total, 120 Tiingo-capable formulas, 84 default-eligible classified candidates, 36 Tiingo-capable but unclassified entries and 15 Alpaca-only VWAP entries.
+- [ ] The Active Pool is human-approved, 6-8 factors, equal weight and hash-frozen.
+- [ ] Current-universe evidence says `historical_pit_verified=false`.
+- [ ] Fewer than 500 complete stocks blocks targets.
+- [ ] SPY is absent from factor cross-sectional ranks and portfolio rows.
+- [ ] Every rebalance line requires manual review and no broker transport exists.
+- [ ] Forward Paper Log is append-only and does not promote research/release state.
+- [ ] ML code, configuration and dependencies are absent from the V5 implementation.
+- [ ] Full regression, manifest verification and credential scan pass before completion.
