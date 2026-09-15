@@ -39,12 +39,12 @@ def test_preflight_reports_blocking_codes(tmp_path, capsys):
     assert "MISSING_N" in payload["errors"]
 
 
-def test_future_command_is_explicitly_not_implemented(capsys):
+def test_runtime_command_blocks_missing_release(capsys):
     exit_code = main(["signal", "--release", "release-v1", "--mode", "paper"])
 
     payload = json.loads(capsys.readouterr().out)
-    assert exit_code == 3
-    assert payload == {"command": "signal", "status": "NOT_IMPLEMENTED"}
+    assert exit_code == 2
+    assert payload["status"] == "BLOCKED_CONFIG"
 
 
 @pytest.mark.parametrize("root", [[], None, "config", 3])

@@ -615,7 +615,7 @@ def verify_factors(conversion: Mapping[str, Any],
                     check["max_abs_group_mean"] = neutrality_error
                 checks[provider] = check
                 factor_matrices[provider] = full
-            except (ValueError, TypeError, AssertionError, KeyError) as exc:
+            except (ValueError, TypeError, AssertionError, KeyError, ArithmeticError) as exc:
                 failed = True
                 checks[provider] = {"status": "FAIL", "error_code": str(exc)[:160]}
         factor["checks"].update(checks)

@@ -16,7 +16,7 @@ from typing import Sequence
 from .contracts import STAGE_REQUIRED_FIELDS, validate_config
 
 
-FUTURE_COMMANDS = {
+RUNTIME_COMMANDS = {
     "validate": (("--stage",), ("--protocol",)),
     "freeze": (("--stage",), ("--config",)),
     "signal": (("--release",), ("--mode",)),
@@ -34,6 +34,10 @@ def _parser() -> argparse.ArgumentParser:
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
+    policy_check = subparsers.add_parser('policy-check', help='Validate approved R2 policy hash; no label access or release certification.')
+    policy_check.add_argument('--policy', required=True, type=Path)
+    policy_check.add_argument('--output', required=True, type=Path)
+
     preflight = subparsers.add_parser(
         "preflight", help="Read a JSON config and report stage blockers."
     )
@@ -48,12 +52,23 @@ def _parser() -> argparse.ArgumentParser:
     )
     environment.add_argument("--output", required=True, type=Path)
 
-    for name, options in FUTURE_COMMANDS.items():
+    for name, options in RUNTIME_COMMANDS.items():
         command = subparsers.add_parser(
-            name, help="Reserved command; currently returns NOT_IMPLEMENTED."
+            name, help="Run local evidence, signal, execution or reconciliation workflow."
         )
         for option in options:
             command.add_argument(*option, required=True)
+        command.add_argument("--output", type=Path)
+        if name == "signal":
+            command.add_argument("--synthetic-demo", action="store_true")
+        if name in {"signal", "validate"}:
+            command.add_argument("--input", type=Path)
+        if name in {"execution-preview", "signal"}:
+            command.add_argument("--now")
+        if name == "execution-preview":
+            command.add_argument("--policy", type=Path)
+        if name == "validate":
+            command.add_argument("--ledger", type=Path)
     importer = subparsers.add_parser("import-brain", help="Import local BRAIN exports losslessly.")
     importer.add_argument("--input", required=True, action="append", type=Path)
     importer.add_argument("--output", required=True, type=Path)
@@ -85,6 +100,16 @@ def _parser() -> argparse.ArgumentParser:
     )
     converter.add_argument("--output", required=True, type=Path)
     converter.add_argument("--classification-run", type=Path)
+    reconstruction = subparsers.add_parser(
+        "reconstruct-library", help="Build independent local formulas from source economic components."
+    )
+    reconstruction.add_argument("--registry", required=True, type=Path)
+    reconstruction.add_argument("--field-mapping", required=True, type=Path)
+    reconstruction.add_argument("--provider-run", required=True, action="append", help="NAME=PATH saved evidence; repeat per provider.")
+    reconstruction.add_argument("--tiingo-history", type=Path)
+    reconstruction.add_argument("--tiingo-history-limit", type=int, default=50)
+    reconstruction.add_argument("--tiingo-benchmark-json", type=Path)
+    reconstruction.add_argument("--output", required=True, type=Path)
     probe = subparsers.add_parser("probe-data", help="Run one finite authenticated provider sample.")
     probe.add_argument("--provider", required=True, choices=("alpaca", "tiingo"))
     probe.add_argument("--output", required=True, type=Path)
@@ -180,6 +205,30 @@ def _environment_check(output: Path) -> dict:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
+    if args.command == 'policy-check':
+        from .policy_v2 import load_policy
+        from .runtime import save_result
+        try:
+            policy = load_policy(args.policy)
+            result = {'status':'POLICY_IMPLEMENTATION_APPROVED', 'policy_id':policy['policy_id'],
+                      'content_sha256':policy['content_sha256'], 'release_allowed':False,
+                      'implementation_complete':False,
+                      'remaining':['PIT_UNIVERSE_END_TO_END','EXECUTION_POLICY_INTEGRATION',
+                                   'CORPORATE_ACTIONS_COMPLETE','CERTIFIED_EVIDENCE_LEDGER','R2_REPORTING_INTEGRATION']}
+            save_result(result,args.output)
+            _emit(result)
+            return 0
+        except (ValueError, OSError, KeyError) as exc:
+            _emit({'status':'BLOCKED_POLICY','reason':str(exc)})
+            return 2
+    if args.command in RUNTIME_COMMANDS:
+        from .runtime import run_command
+        try:
+            payload, code = run_command(args)
+        except (OSError, ValueError, KeyError, TypeError, ArithmeticError) as exc:
+            payload, code = {"status": "BLOCKED_CONFIG", "errors": [str(exc) if isinstance(exc, ValueError) else type(exc).__name__]}, 2
+        print(json.dumps(payload, indent=2, sort_keys=True, default=str, allow_nan=False))
+        return code
     if args.command == "preflight":
         try:
             config = json.loads(args.config.read_text(encoding="utf-8"))
@@ -238,8 +287,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         from .mapping import map_library
         _emit(map_library(args.registry, args.field_catalog, args.output))
         return 0
-    if args.command == "convert-library":
+    if args.command in {"convert-library", "reconstruct-library"}:
         from .proxy_pipeline import run_proxy_pipeline
+        from .reconstruction_pipeline import run_reconstruction_pipeline
         provider_runs = {}
         for item in args.provider_run:
             if "=" not in item:
@@ -250,10 +300,21 @@ def main(argv: Sequence[str] | None = None) -> int:
                 _emit({"status": "BLOCKED_CONFIG", "errors": ["INVALID_PROVIDER_RUN"]})
                 return 2
             provider_runs[name] = Path(path)
-        _emit(run_proxy_pipeline(
-            args.registry, args.field_mapping, provider_runs, args.output,
-            args.classification_run,
-        ))
+        if args.command == "reconstruct-library":
+            _emit(run_reconstruction_pipeline(
+                args.registry,
+                args.field_mapping,
+                provider_runs,
+                args.output,
+                history_snapshot=args.tiingo_history,
+                history_limit=args.tiingo_history_limit,
+                benchmark_json=args.tiingo_benchmark_json,
+            ))
+        else:
+            _emit(run_proxy_pipeline(
+                args.registry, args.field_mapping, provider_runs, args.output,
+                args.classification_run,
+            ))
         return 0
     if args.command == "probe-data":
         from .probes import probe_data

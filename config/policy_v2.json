@@ -1,0 +1,129 @@
+{
+  "schema_version": 2,
+  "policy_id": "policy_v2_r2",
+  "approval": {
+    "status": "APPROVED_FOR_IMPLEMENTATION",
+    "source": "User: \u53ef\u4ee5\uff0c\u6309\u7167\u4fee\u6539\u65b9\u6848\u8fdb\u884c\u5b9e\u65bd"
+  },
+  "live_enabled": false,
+  "spec_sha256": "bbf21ae0997c8ba15b55f9eb4a94a37e3f9b16d8b2f6adf4a84e0c9e00e21c8a",
+  "universe": {
+    "domicile": "US",
+    "exchanges": [
+      "NYSE",
+      "NASDAQ",
+      "NYSE_AMERICAN"
+    ],
+    "security_type": "COMMON_STOCK_OR_REIT",
+    "ipo_sessions": 252,
+    "despac_reset_sessions": 252,
+    "min_raw_close": 5,
+    "adv_window": 60,
+    "min_adv_usd": 10000000,
+    "size_cap": null,
+    "representative": "STICKY_ELIGIBILITY_EPISODE"
+  },
+  "factor": {
+    "delay": 1,
+    "horizon": 5,
+    "top_fraction": 0.1,
+    "bottom_fraction": 0.1,
+    "coverage": {
+      "OHLCV": 0.95,
+      "PRICE": 0.95
+    },
+    "specialist_coverage": "REQUIRES_PRE_REGISTRATION",
+    "min_rankable": 500
+  },
+  "portfolio": {
+    "long_fraction": 0.1,
+    "short_fraction": 0,
+    "min_cash": 0.05,
+    "max_single_name_weight": 0.02,
+    "max_sector_weight": 0.25,
+    "max_turnover": 0.2,
+    "gross_exposure": 0.95,
+    "net_exposure": 0.95,
+    "weight_method": "EQUAL",
+    "benchmark": "B2_risk_matched"
+  },
+  "execution": {
+    "timezone": "America/New_York",
+    "signal_freeze": "21:00",
+    "observe": "09:35",
+    "earliest_fill": "09:36",
+    "window_end": "10:00",
+    "refresh": "09:45",
+    "refresh_earliest_fill": "09:46",
+    "ttl_seconds": 300,
+    "max_quote_age_seconds": 10,
+    "max_account_age_seconds": 60,
+    "max_cross_security_skew_seconds": 5,
+    "max_spread_ratio": 0.005,
+    "adverse_gap": 0.03,
+    "limit_epsilon": 0.001,
+    "rebalance": "WEEKLY_FIRST_SESSION",
+    "feed": "sip"
+  },
+  "cost": {
+    "fee_floor_bps": 1,
+    "slippage_bps": 5,
+    "stress_slippage_bps": 10,
+    "stress_fee_multiplier": 2,
+    "stress_spread_multiplier": 2,
+    "adv_participation": 0.01,
+    "minute_participation": 0.05,
+    "cash_interest": 0
+  },
+  "alpha_gate": {
+    "mean_rank_ic_gt": 0.01,
+    "gmb_gt": 0,
+    "gmb_ci_lower_gt": 0,
+    "annual_joint_positive_fraction": 0.6666666666666666,
+    "halfyear_ic_positive_fraction": 0.6666666666666666,
+    "minimum_full_years": 3
+  },
+  "portfolio_gate": {
+    "active_mean_gt": 0,
+    "active_ci_lower_gt": 0,
+    "mdd_max": 0.25,
+    "stress_active_gt": 0
+  },
+  "bootstrap": {
+    "block_sessions": 20,
+    "replicates": 2000,
+    "seed": 20260909
+  },
+  "evidence": {
+    "development_exposed": [
+      "2020-01-01",
+      "2025-12-31"
+    ],
+    "E1": {
+      "sessions": 126,
+      "rebalances": 26,
+      "calendar_months": 6
+    },
+    "E2": {
+      "sessions": 252,
+      "rebalances": 50,
+      "calendar_years": 1
+    },
+    "E3": {
+      "sessions": 756,
+      "rebalances": 150,
+      "full_calendar_years": 3
+    },
+    "E4": {
+      "sessions": 252,
+      "rebalances": 50,
+      "calendar_years": 1,
+      "after_E3": true
+    },
+    "purge_label_maturity": true,
+    "embargo_sessions": 5,
+    "trial_main": 1,
+    "trial_cost_control": 1
+  },
+  "content_sha256": "2de3864300d28538a21266c44381f56fd72eb71fa49ee3cacd1301eb56a4426d"
+}

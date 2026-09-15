@@ -1,0 +1,47 @@
+{
+  "fixture_notice": "SYNTHETIC engineering examples only; not production parameters or execution evidence",
+  "limit_cases": [
+    {
+      "side": "BUY",
+      "bid": "100.9",
+      "ask": "101",
+      "guard_low": "98",
+      "guard_high": "102",
+      "epsilon": ".001",
+      "tick": ".01",
+      "expected": "101.10"
+    },
+    {
+      "side": "SELL",
+      "bid": "99",
+      "ask": "99.1",
+      "guard_low": "98",
+      "guard_high": "102",
+      "epsilon": ".001",
+      "tick": ".01",
+      "expected": "98.91"
+    }
+  ],
+  "reprice_cases": [
+    {
+      "price": 175,
+      "NAV": 100000,
+      "weight": ".05",
+      "actual_shares": 20,
+      "model_target_shares": 28
+    },
+    {
+      "price": 188,
+      "NAV": 100000,
+      "weight": ".05",
+      "actual_shares": 20,
+      "model_target_shares": 26
+    }
+  ],
+  "initial_approved_shares": {
+    "AAA": 10,
+    "BBB": -10,
+    "CCC": 27,
+    "DDD": -10
+  }
+}

@@ -19,6 +19,15 @@ import requests
 URL = "https://api.tiingo.com/tiingo/fundamentals/meta"
 
 
+def _label(value: Any) -> str | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    value = value.strip()
+    if value.lower().startswith("field not available") or value.lower() in {"null", "none", "n/a"}:
+        return None
+    return value
+
+
 def fetch_current_classifications(
     token: str,
     *,
@@ -54,24 +63,28 @@ def fetch_current_classifications(
             continue
         if item.get("isActive") is False:
             continue
-        sic_code = item.get("sicCode")
+        sic_code = _label(str(item.get("sicCode", "")))
         try:
-            subindustry = f"SIC:{int(sic_code):04d}" if sic_code is not None else None
+            subindustry = f"SIC:{int(sic_code):04d}" if sic_code and sic_code.isdigit() and 0 < int(sic_code) <= 9999 else None
         except (TypeError, ValueError):
             subindustry = None
         rows.append({
-            "symbol": str(item["ticker"]),
+            "symbol": str(item["ticker"]).strip().upper(),
             "security_id": item.get("permaTicker"),
             "effective_at": timestamp,
             "available_at": timestamp,
             "market": "USA",
-            "sector": item.get("sector") or item.get("sicSector"),
-            "industry": item.get("industry") or item.get("sicIndustry"),
+            "sector": _label(item.get("sector")),
+            "industry": _label(item.get("industry")),
             "subindustry": subindustry,
-            "sic_code": sic_code,
+            "sic_code": sic_code if subindustry else None,
         })
     frame = pd.DataFrame(rows)
-    if frame.empty or frame["symbol"].duplicated().any():
+    if frame.empty:
+        raise ValueError("TIINGO_CLASSIFICATION_EMPTY_OR_DUPLICATE")
+    ambiguous = sorted(frame.loc[frame["symbol"].duplicated(keep=False), "symbol"].unique().tolist())
+    frame = frame.loc[~frame["symbol"].isin(ambiguous)].reset_index(drop=True)
+    if frame.empty:
         raise ValueError("TIINGO_CLASSIFICATION_EMPTY_OR_DUPLICATE")
     evidence = {
         "classification_evidence_verified": True,
@@ -81,8 +94,8 @@ def fetch_current_classifications(
         "endpoint": URL,
         "levels": ["SECTOR", "INDUSTRY", "SUBINDUSTRY"],
         "taxonomy_by_level": {
-            "SECTOR": "TIINGO_SECTOR_DERIVED_FROM_SIC",
-            "INDUSTRY": "TIINGO_INDUSTRY_DERIVED_FROM_SIC",
+            "SECTOR": "TIINGO_SECTOR",
+            "INDUSTRY": "TIINGO_INDUSTRY",
             "SUBINDUSTRY": "LOCAL_FULL_SIC_CODE_PROXY",
         },
         "brain_taxonomy_equivalent": {
@@ -90,6 +103,10 @@ def fetch_current_classifications(
         },
         "fetched_at": timestamp.isoformat(),
         "row_count": len(frame),
+        "excluded_ambiguous_symbols": ambiguous,
+        "coverage": {level: int(frame[level.lower()].notna().sum()) for level in ("SECTOR", "INDUSTRY", "SUBINDUSTRY")},
+        "coverage_status": "COMPLETE" if frame[["sector", "industry", "subindustry"]].notna().all().all() else "PARTIAL",
+        "missing_classification_policy": "KEEP_MISSING_NO_SIC_LABEL_FALLBACK",
         "contains_credentials": False,
     }
     return frame, evidence

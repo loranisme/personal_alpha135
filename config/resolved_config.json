@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "phase": "T0_TO_T3",
+  "phase": "T5_TO_T8_ENGINEERING",
   "data_scope": "NARROW_SOURCE_SUPPORTED_MVP",
   "primary_market_data_candidate": "ALPACA_SIP_AND_TIINGO_EOD_SAMPLE_VERIFIED_PRODUCTION_SOURCE_NOT_FROZEN",
   "primary_fundamental_candidate": "UNDECIDED_PENDING_DEFINITIONS_SAMPLE",
@@ -13,14 +13,14 @@
   },
   "alpaca_role": "HISTORICAL_SAMPLE_VERIFIED_AND_FUTURE_EXECUTION_QUOTE_CANDIDATE",
   "allow_proxy_fields": true,
-  "proxy_id_prefix": "local_proxy__",
-  "numeric_parity_required_before_certification": true,
-  "complete_library_status": "ALL_886_DECIDED_7_REAL_INPUT_CANDIDATES_93_NEUTRALIZATION_ENGINEERING_VERIFIED",
+  "proxy_id_prefix": "local_reconstruction__",
+  "numeric_parity_required_before_certification": false,
+  "complete_library_status": "886_RECORDED_317_SOURCE_ASSOCIATIONS_569_DEFERRED",
   "performance_selection_allowed_in_t2": false,
   "validation_holdout_access_allowed_in_t2": false,
-  "phase_completion_status": "T2C_NEUTRALIZATION_ENGINE_BUILT_REAL_CLASSIFICATION_PARTIAL",
+  "phase_completion_status": "POST_T4_IMPLEMENTATION_IN_PROGRESS",
   "proxy_policy": "PERFORMANCE_BLIND_HYPOTHESIS_CARD_LIMITED_V1",
-  "project_factor_library": "private/project_factor_library/v14/project_factor_library.json",
-  "project_factor_library_status": "7_COMPUTE_VERIFIED_879_DEFERRED_92_CLASSIFICATION_ONLY_DATA_BLOCKED",
+  "project_factor_library": "private/project_factor_library/reconstruction-v4/project_factor_library.json",
+  "project_factor_library_status": "135_CANDIDATES_135_SAMPLE_COMPUTE_VERIFIED_RESEARCH_NOT_ELIGIBLE",
   "automatic_proxy_release_activation": false
 }
