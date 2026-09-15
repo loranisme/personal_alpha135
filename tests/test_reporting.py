@@ -16,3 +16,12 @@ def test_selection_writer_conditionally_includes_helper(tmp_path):
     paths=write_selection_review(with_helper,tmp_path/"helper")
     assert (tmp_path/"helper/manual_rebalance_draft.csv").is_file()
     assert "Manual Rebalance Draft" in load_workbook(paths["workbook"]).sheetnames
+
+def test_selection_writer_omits_target_table_when_rebalance_not_due(tmp_path):
+    bundle={"status":"RANKING_READY_NO_REBALANCE","stock_ranking":pd.DataFrame([{"security_id":"A","composite_score":.9}]),"alpha_scores":pd.DataFrame([{"security_id":"A","F1":1.0}]),"data_checks":pd.DataFrame([{"check":"coverage","status":"PASS"}]),"blocked_items":pd.DataFrame(columns=["code"]),"execution_helper_status":"NOT_DUE","rebalance_due":False}
+    paths=write_selection_review(bundle,tmp_path/"ranking-only")
+    assert "target_portfolio" not in paths
+    assert not (tmp_path/"ranking-only/target_portfolio.csv").exists()
+    assert "Target Portfolio" not in load_workbook(paths["workbook"]).sheetnames
+    manifest=json.loads(paths["manifest"].read_text())
+    assert manifest["rebalance_due"] is False

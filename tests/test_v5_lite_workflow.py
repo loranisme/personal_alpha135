@@ -11,7 +11,7 @@ def _fixture(n=500,helper=False):
     for i in range(6): factors.append({"local_factor_id":f"F{i}","expression":"rank(ts_delta(close, 1))","field_bindings":{"close":"close"},"allowed_providers":["tiingo_eod"],"build_status":"COMPUTE_VERIFIED","usage_tier":"DIAGNOSTIC_ONLY","provenance_kind":"LOCAL_RECONSTRUCTION","settings":{"delay":0,"decay":0,"neutralization":"NONE"}})
     pool={"schema_version":1,"status":"FROZEN","active_pool_id":"pool","library_version":"reconstruction-v4","v4_manifest_sha256":"a"*64,"provider":"tiingo_eod","selected_factors":[{"local_factor_id":f"F{i}","direction":1,"weight":str(1/6)} for i in range(6)],"decision_list":[],"warnings":[],"selection_basis":"HUMAN","data_exposure":{},"live_orders_submitted":0}
     pool["content_sha256"]=hashlib.sha256(json.dumps(pool,sort_keys=True,separators=(",",":"),ensure_ascii=False,allow_nan=False).encode()).hexdigest()
-    data={"library":{"factors":factors},"active_pool":pool,"provider":"tiingo_eod","inputs":{"close":close},"universe":pd.DataFrame({"security_id":ids,"sector":[f"sector-{i%10}" for i in range(n)]}),"session":dates[-1],"selection_policy":{"top_fraction":.1,"invested_weight":.95,"minimum_cash":.05,"max_single_name_weight":.02,"max_sector_weight":.25,"max_account_age_seconds":60}}
+    data={"library":{"factors":factors},"active_pool":pool,"provider":"tiingo_eod","inputs":{"close":close},"universe":pd.DataFrame({"security_id":ids,"sector":[f"sector-{i%10}" for i in range(n)]}),"session":dates[-1],"selection_policy":{"top_fraction":.1,"invested_weight":.95,"minimum_cash":.05,"max_single_name_weight":.02,"max_sector_weight":.25,"max_account_age_seconds":60,"rebalance":"WEEKLY_FIRST_SESSION"}}
     if helper:
         data.update(execution_helper=True,positions=pd.DataFrame([{"security_id":"S0000","current_shares":0,"account_as_of":"2025-01-06T15:00:00Z"}]),prices=pd.DataFrame([{"security_id":x,"reference_price":100.} for x in ids]),nav=100000,now="2025-01-06T15:00:30Z")
     return data
@@ -26,6 +26,24 @@ def test_v5_core_writes_targets_without_rebalance_draft(tmp_path):
     assert result["status"]=="SELECTION_READY" and result["live_orders_submitted"]==0
     assert result["execution_helper_status"]=="NOT_REQUESTED"
     assert (tmp_path/"run/stock_ranking.csv").is_file() and (tmp_path/"run/target_portfolio.csv").is_file()
+    assert not (tmp_path/"run/manual_rebalance_draft.csv").exists()
+
+def test_v5_non_rebalance_session_writes_ranking_without_targets(tmp_path):
+    data=_fixture()
+    data["session"]=pd.Timestamp("2025-01-03",tz="UTC")
+    result=run_v5_lite(data,tmp_path/"run",tmp_path/"paper.sqlite")
+    assert result["status"]=="RANKING_READY_NO_REBALANCE"
+    assert (tmp_path/"run/stock_ranking.csv").is_file()
+    assert not (tmp_path/"run/target_portfolio.csv").exists()
+    manifest=json.loads((tmp_path/"run/manifest.json").read_text())
+    assert manifest["rebalance_due"] is False
+
+def test_v5_non_rebalance_session_rejects_helper_request(tmp_path):
+    data=_fixture(helper=True)
+    data["session"]=pd.Timestamp("2025-01-03",tz="UTC")
+    result=run_v5_lite(data,tmp_path/"run",tmp_path/"paper.sqlite")
+    assert result["status"]=="RANKING_READY_NO_REBALANCE"
+    assert result["execution_helper_status"]=="NOT_DUE"
     assert not (tmp_path/"run/manual_rebalance_draft.csv").exists()
 
 def test_v5_optional_helper_adds_review_only_draft(tmp_path):

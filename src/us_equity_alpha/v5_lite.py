@@ -7,10 +7,41 @@ from .daily_selection import calculate_active_scores
 from .manual_selection import build_personal_targets,build_manual_rebalance_helper
 from .paper_log import PaperLog
 from .reporting import write_selection_review
+from .sample_workflow import weekly_rebalance_dates
 
 def _hash(value):
     if isinstance(value,pd.DataFrame): value=value.to_json(orient="split",date_format="iso",double_precision=15)
     return hashlib.sha256(json.dumps(value,sort_keys=True,default=str).encode()).hexdigest()
+
+def _rebalance_due(data):
+    if data["selection_policy"].get("rebalance") != "WEEKLY_FIRST_SESSION":
+        raise ValueError("UNSUPPORTED_REBALANCE_POLICY")
+    indices=[]
+    for panel in data["inputs"].values():
+        index=pd.DatetimeIndex(panel.index)
+        index=index.tz_localize("UTC") if index.tz is None else index.tz_convert("UTC")
+        indices.append(index)
+    sessions=indices[0]
+    for index in indices[1:]: sessions=sessions.intersection(index)
+    sessions=sessions.sort_values()
+    session=pd.Timestamp(data["session"])
+    session=session.tz_localize("UTC") if session.tz is None else session.tz_convert("UTC")
+    return any(execution_session==session for execution_session,_ in weekly_rebalance_dates(sessions))
+
+def _signal_event(data, *, helper, target=None):
+    return {
+        "signal_id":f"{data['active_pool']['active_pool_id']}__{pd.Timestamp(data['session']).date()}",
+        "signal_session":str(pd.Timestamp(data["session"])),
+        "pool_hash":data["active_pool"]["content_sha256"],
+        "universe_hash":_hash(data["universe"]),
+        "config_hash":_hash(data["selection_policy"]),
+        "input_hashes":{key:_hash(value) for key,value in data["inputs"].items()},
+        "blockers":helper.get("blockers",[]),
+        "target_hash":_hash(target) if target is not None else None,
+        "execution_helper_status":helper["execution_helper_status"],
+        "helper_output_hash":_hash(helper["manual_rebalance_draft"]) if "manual_rebalance_draft" in helper else None,
+        "live_orders_submitted":0,
+    }
 
 def run_v5_lite(data,output_dir,paper_log_path):
     output=Path(output_dir)
@@ -23,14 +54,21 @@ def run_v5_lite(data,output_dir,paper_log_path):
         (output/"run_status.json").write_text(json.dumps(result,indent=2)+"\n")
         return result
     ranking=scores.composite.dropna().rename_axis("security_id").reset_index().sort_values(["composite_score","security_id"],ascending=[False,True],kind="stable")
+    rebalance_due=_rebalance_due(data)
+    if not rebalance_due:
+        helper={"execution_helper_status":"NOT_DUE" if data.get("execution_helper") is True else "NOT_REQUESTED","blockers":["EXECUTION_HELPER_NOT_DUE"] if data.get("execution_helper") is True else []}
+        bundle={"status":"RANKING_READY_NO_REBALANCE","rebalance_due":False,"execution_helper_status":helper["execution_helper_status"],"alpha_scores":scores.ranked_panels.rename_axis("security_id").reset_index(),"stock_ranking":ranking,"data_checks":scores.coverage,"blocked_items":pd.DataFrame([{"code":x} for x in helper["blockers"]],columns=["code"])}
+        paths=write_selection_review(bundle,output)
+        PaperLog(paper_log_path).record_signal(_signal_event(data,helper=helper))
+        return {"status":"RANKING_READY_NO_REBALANCE","rebalance_due":False,"execution_helper_status":helper["execution_helper_status"],"live_orders_submitted":0,"output":str(output),"manifest":str(paths["manifest"])}
     core=build_personal_targets(ranking,data["universe"],data["selection_policy"])
     helper={"execution_helper_status":"NOT_REQUESTED","blockers":[]}
     if data.get("execution_helper") is True:
         helper=build_manual_rebalance_helper(core["target_portfolio"],data["positions"],data["prices"],data["nav"],data["selection_policy"],now=data["now"])
-    bundle={**core,"execution_helper_status":helper["execution_helper_status"],"alpha_scores":scores.ranked_panels.rename_axis("security_id").reset_index(),"data_checks":scores.coverage,"blocked_items":pd.DataFrame([{"code":x} for x in helper.get("blockers",[])],columns=["code"])}
+    bundle={**core,"rebalance_due":True,"execution_helper_status":helper["execution_helper_status"],"alpha_scores":scores.ranked_panels.rename_axis("security_id").reset_index(),"data_checks":scores.coverage,"blocked_items":pd.DataFrame([{"code":x} for x in helper.get("blockers",[])],columns=["code"])}
     if "manual_rebalance_draft" in helper: bundle["manual_rebalance_draft"]=helper["manual_rebalance_draft"]
     paths=write_selection_review(bundle,output)
-    event={"signal_id":f"{data['active_pool']['active_pool_id']}__{pd.Timestamp(data['session']).date()}","signal_session":str(pd.Timestamp(data["session"])),"pool_hash":data["active_pool"]["content_sha256"],"universe_hash":_hash(data["universe"]),"config_hash":_hash(data["selection_policy"]),"input_hashes":{k:_hash(v) for k,v in data["inputs"].items()},"blockers":helper.get("blockers",[]),"target_hash":_hash(core["target_portfolio"]),"execution_helper_status":helper["execution_helper_status"],"helper_output_hash":_hash(helper["manual_rebalance_draft"]) if "manual_rebalance_draft" in helper else None,"live_orders_submitted":0}
+    event=_signal_event(data,helper=helper,target=core["target_portfolio"])
     PaperLog(paper_log_path).record_signal(event)
     return {"status":"SELECTION_READY","execution_helper_status":helper["execution_helper_status"],"live_orders_submitted":0,"output":str(output),"manifest":str(paths["manifest"])}
 

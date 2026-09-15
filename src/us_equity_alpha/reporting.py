@@ -158,7 +158,9 @@ def write_selection_review(bundle, output_dir):
     output=Path(output_dir)
     if output.exists(): raise FileExistsError('OUTPUT_DIRECTORY_EXISTS')
     output.mkdir(parents=True)
-    tables=[('data_checks','Data Checks','data_checks.csv'),('alpha_scores','Alpha Scores','alpha_scores.parquet'),('stock_ranking','Stock Ranking','stock_ranking.csv'),('target_portfolio','Target Portfolio','target_portfolio.csv'),('blocked_items','Blocked Items','blocked_items.csv')]
+    tables=[('data_checks','Data Checks','data_checks.csv'),('alpha_scores','Alpha Scores','alpha_scores.parquet'),('stock_ranking','Stock Ranking','stock_ranking.csv')]
+    if bundle.get('rebalance_due',True): tables.append(('target_portfolio','Target Portfolio','target_portfolio.csv'))
+    tables.append(('blocked_items','Blocked Items','blocked_items.csv'))
     if bundle.get('execution_helper_status')=='EXECUTION_HELPER_READY': tables.append(('manual_rebalance_draft','Manual Rebalance Draft','manual_rebalance_draft.csv'))
     paths={}
     with pd.ExcelWriter(output/'selection_review.xlsx',engine='openpyxl') as writer:
@@ -178,7 +180,7 @@ def write_selection_review(bundle, output_dir):
         if workbook[sheet].max_row-1 != len(frame): raise ValueError('SELECTION_ARTIFACT_ROW_MISMATCH')
     paths['workbook']=output/'selection_review.xlsx'
     files={p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in output.iterdir() if p.is_file()}
-    manifest={'schema_version':1,'status':bundle.get('status'),'execution_helper_status':bundle.get('execution_helper_status','NOT_REQUESTED'),'files':files,'live_orders_submitted':0}
+    manifest={'schema_version':1,'status':bundle.get('status'),'rebalance_due':bundle.get('rebalance_due',True),'execution_helper_status':bundle.get('execution_helper_status','NOT_REQUESTED'),'files':files,'live_orders_submitted':0}
     (output/'manifest.json').write_text(json.dumps(manifest,indent=2,sort_keys=True)+'\n')
     paths['manifest']=output/'manifest.json'
     return paths

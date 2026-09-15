@@ -22,7 +22,7 @@ us-equity-alpha build-current-universe --assets inputs/assets.csv --bars inputs/
 us-equity-alpha daily-select --library private/project_factor_library/reconstruction-v4/project_factor_library.json --active-pool runs/active_pool.json --universe runs/current_universe/eligible_universe.csv --market-data inputs/panels --policy config/personal_selection_policy.json --as-of 2026-09-15T00:00:00Z --output runs/selection --paper-log runs/forward_paper.sqlite
 ```
 
-只有需要把目标权重换算为手工买卖股数时，才在 `daily-select` 后追加 `--execution-helper --positions ... --account ... --reference-prices ...`。该 helper 只生成 `REVIEW_REQUIRED` 草稿，不创建或发送券商订单。ML 扩展和历史 PIT 认证不属于 V5 Lite。
+`daily-select` 每个交易日都生成股票排名；只有配置规定的 `WEEKLY_FIRST_SESSION` 才生成目标持仓。只有需要把该目标权重换算为手工买卖股数时，才追加 `--execution-helper --positions ... --account ... --reference-prices ...`。该 helper 只生成 `REVIEW_REQUIRED` 草稿，不创建或发送券商订单。ML 扩展和历史 PIT 认证不属于 V5 Lite。
 
 ![US Equity Alpha 工作流](docs/us-equity-alpha-workflow-v1.png)
 
