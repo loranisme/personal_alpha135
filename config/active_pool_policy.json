@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "minimum_factors": 6,
+  "maximum_factors": 8,
+  "default_provider": "tiingo_eod",
+  "absolute_score_correlation_warning": 0.8,
+  "top_decile_overlap_warning": 0.7,
+  "score_evidence": {
+    "universe_label": "NOT_SUPPLIED",
+    "sample_start": null,
+    "sample_end": null,
+    "provider": null,
+    "input_hash": null
+  }
+}

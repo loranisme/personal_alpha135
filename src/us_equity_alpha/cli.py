@@ -127,6 +127,23 @@ def _parser() -> argparse.ArgumentParser:
     catalog.add_argument("--policy", required=True, type=Path)
     catalog.add_argument("--diagnostics", type=Path)
     catalog.add_argument("--output", required=True, type=Path)
+    pool_review = subparsers.add_parser(
+        "build-active-pool-review",
+        help="Create the protected workbook for human Active Pool decisions.",
+    )
+    pool_review.add_argument("--catalog", required=True, type=Path)
+    pool_review.add_argument("--coverage", required=True, type=Path)
+    pool_review.add_argument("--scores", type=Path)
+    pool_review.add_argument("--policy", required=True, type=Path)
+    pool_review.add_argument("--output", required=True, type=Path)
+    pool_freeze = subparsers.add_parser(
+        "freeze-active-pool", help="Freeze reviewed Active Pool decisions into immutable JSON."
+    )
+    pool_freeze.add_argument("--review", required=True, type=Path)
+    pool_freeze.add_argument("--library", required=True, type=Path)
+    pool_freeze.add_argument("--manifest-sha256", required=True)
+    pool_freeze.add_argument("--policy", required=True, type=Path)
+    pool_freeze.add_argument("--output", required=True, type=Path)
     return parser
 
 
@@ -373,6 +390,51 @@ def main(argv: Sequence[str] | None = None) -> int:
             "files": {key: str(path) for key, path in paths.items()},
             "live_orders_submitted": 0,
         })
+        return 0
+    if args.command == "build-active-pool-review":
+        from .active_pool import build_active_pool_review
+        import pandas as pd
+
+        try:
+            catalog = pd.read_csv(args.catalog)
+            coverage = pd.read_csv(args.coverage)
+            policy = json.loads(args.policy.read_text(encoding="utf-8"))
+            scores = None
+            if args.scores is not None:
+                long_scores = pd.read_parquet(args.scores)
+                required = {"date", "security_id", "local_factor_id", "score"}
+                if set(long_scores.columns) != required:
+                    raise ValueError("INVALID_SCORE_PANEL_SCHEMA")
+                long_scores["date"] = pd.to_datetime(long_scores.date, utc=True)
+                scores = {
+                    factor_id: rows.set_index(["date", "security_id"]).score.sort_index()
+                    for factor_id, rows in long_scores.groupby("local_factor_id", sort=True)
+                }
+            result = build_active_pool_review(
+                catalog, coverage, scores, policy, args.output
+            )
+        except (FileExistsError, OSError, ValueError, KeyError, TypeError) as exc:
+            _emit({"status": "BLOCKED_CONFIG", "errors": [str(exc)]})
+            return 2
+        _emit({**result, "path": str(result["path"]), "live_orders_submitted": 0})
+        return 0
+    if args.command == "freeze-active-pool":
+        from .active_pool import freeze_active_pool
+
+        try:
+            library = json.loads(args.library.read_text(encoding="utf-8"))
+            policy = json.loads(args.policy.read_text(encoding="utf-8"))
+            result = freeze_active_pool(
+                args.review,
+                library,
+                args.manifest_sha256,
+                policy,
+                args.output,
+            )
+        except (FileExistsError, OSError, ValueError, KeyError, TypeError) as exc:
+            _emit({"status": "BLOCKED_CONFIG", "errors": [str(exc)]})
+            return 2
+        _emit(result)
         return 0
     _emit({"command": args.command, "status": "NOT_IMPLEMENTED"})
     return 3
