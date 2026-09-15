@@ -15,11 +15,11 @@ BRAIN Source Registry (886 sources and hypotheses)
   -> equal-weight composite
   -> stock ranking
   -> Top 10% equal-weight target portfolio
-  -> manual rebalance draft
+  -> optional manual rebalance execution helper
   -> append-only forward paper log
 ```
 
-This is a personal decision-support workflow. It produces rankings, targets and drafts for human review. It never submits, cancels or replaces broker orders.
+This is a personal decision-support workflow. Its core output is rankings and target weights. When explicitly requested and supplied with an account snapshot, an optional helper also creates a manual rebalance draft. It never submits, cancels or replaces broker orders.
 
 ## 2. Current baseline
 
@@ -38,12 +38,12 @@ This is a personal decision-support workflow. It produces rankings, targets and 
 ### Included
 
 1. A readable Alpha Catalog derived deterministically from V4.
-2. A structural shortlist and an editable human review workbook.
+2. A structural candidate list, a compact diagnostic-only history view and an editable human review workbook.
 3. A frozen, hashed Active Pool containing 6-8 factors.
 4. A current, liquid U.S. universe with 500-1000 securities.
 5. Generic active-pool computation and equal-weight cross-sectional composite scoring.
 6. Top-10% equal-weight portfolio targets with 5% minimum cash and 2% single-name cap.
-7. Manual rebalance drafts based on user-supplied current positions and reference prices.
+7. An optional manual rebalance execution helper based on user-supplied current positions, NAV and reference prices.
 8. An append-only forward paper log with reproducible input hashes.
 9. CSV, JSON and XLSX outputs for human review.
 
@@ -104,6 +104,17 @@ warmup_sessions
 catalog_exclusion_reasons
 ```
 
+The immutable structural catalog may be joined into a separate review view with exactly four optional historical diagnostics:
+
+```text
+diagnostic_rank_ic_mean_5d
+diagnostic_rank_icir_5d
+diagnostic_top_bottom_net_spread_5d
+diagnostic_turnover_mean
+```
+
+Every non-missing diagnostic row must also carry `diagnostic_status=DIAGNOSTIC_ONLY`, sample start/end, universe label, provider, cost-model hash and input hash. `DEVELOPMENT_EXPOSED` and `SURVIVORSHIP_BIASED_DIAGNOSTIC` remain visible when applicable. Missing diagnostics remain missing with a reason; they are never imputed as zero.
+
 Rules:
 
 - The catalog must contain exactly 135 unique `local_factor_id` values.
@@ -113,12 +124,14 @@ Rules:
 - All 15 VWAP-dependent Alpaca-only factors remain visible with `default_provider_eligible=false` and reason `ALPACA_VWAP_ONLY`.
 - An unresolved tag is represented as `mechanism_tag=unclassified` and reason `MECHANISM_UNCLASSIFIED`.
 - Provider and field lists are sorted before serialization.
+- Diagnostic values never change `direction`, `default_provider_eligible`, `usage_status`, shortlist ordering or Active Pool validity.
+- Sharpe, annualized return and maximum drawdown are not added to the V5 Lite catalog view.
 
 ## 6. Manual Active Pool contract
 
 The system creates an `active_pool_review.xlsx` workbook with three sheets:
 
-1. `Family Shortlist`: structurally eligible factors grouped by mechanism.
+1. `Family Shortlist`: all structurally eligible factors grouped and ranked within mechanism.
 2. `Correlation Conflicts`: pairwise conflicts for the proposed factors when factor panels are available.
 3. `Decision Template`: editable `decision` and `comment` columns.
 
@@ -141,21 +154,21 @@ An initial Active Pool is valid only when:
 - every factor is `default_provider_eligible=true`;
 - every factor has `direction=1`;
 - no two included factors share the same `family_id`;
-- no two included factors share the same primary `mechanism_tag`;
 - absolute score correlation above 0.80 or Top-10% overlap above 0.70 is resolved by retaining at most one conflicting factor;
 - every included row has a non-empty human comment;
 - weights are exactly `1 / N` and sum to one within numeric tolerance.
 
-The initial shortlist uses no historical return ranking. Within a mechanism it sorts lexicographically by:
+Including more than one factor with the same primary mechanism is permitted and emits `SAME_MECHANISM_INCLUDED` with the affected factor IDs. It does not block freezing. Duplicate `family_id` and unresolved correlation/overlap conflicts remain hard blockers.
+
+The candidate list contains every default-eligible factor. Historical diagnostic values are displayed for human reference but never enter programmatic ordering. Within a mechanism the list sorts lexicographically by:
 
 1. dual-provider availability;
 2. higher cross-sectional coverage, when supplied;
 3. semantic status (`FULL_INTENT` before `PARTIAL_INTENT`);
-4. lower turnover, when supplied;
-5. shorter warm-up;
-6. `local_factor_id` as deterministic tie-breaker.
+4. shorter warm-up;
+5. `local_factor_id` as deterministic tie-breaker.
 
-The frozen JSON contains the complete decision list, selected factor IDs, equal weights, review comments, selection basis, V4 manifest hash, data-exposure declaration and its own content hash. Changes create a new `active_pool_id`; files are never overwritten.
+The frozen JSON contains the complete decision list, selected factor IDs, equal weights, review comments, warnings, selection basis, V4 manifest hash, data-exposure declaration and its own content hash. Changes create a new `active_pool_id`; files are never overwritten.
 
 The initial pool fixes `provider=tiingo_eod`. Provider changes require a new Active Pool version.
 
@@ -196,9 +209,9 @@ The universe is a current as-of snapshot. Every historical diagnostic that reuse
 - Each active factor must cover at least 95% of the eligible universe.
 - At least 500 stocks must have a complete composite score.
 - Failure of either rule produces `BLOCKED_DATA` with zero target rows.
-- Daily ranking can be generated every session. Target and rebalance files are generated only when `WEEKLY_FIRST_SESSION` is due.
+- Daily ranking can be generated every session. Target files, and any explicitly requested execution-helper output, are generated only when `WEEKLY_FIRST_SESSION` is due.
 
-## 9. Portfolio and manual draft contract
+## 9. Portfolio and optional execution-helper contract
 
 - Select the highest-scoring 10% of complete, eligible securities using `ceil(M * 0.10)`.
 - Tie-break equal scores with stable security ID.
@@ -206,23 +219,26 @@ The universe is a current as-of snapshot. Every historical diagnostic that reuse
 - Equal-weight selected stocks within the 95% invested budget. The per-stock target weight is fixed as `0.95 / ceil(M * 0.10)` before sector selection.
 - Target single-name weight cannot exceed 2%.
 - When current classifications are complete, walk the stable ranking and accept a stock only if its fixed target weight keeps its sector at or below 25%; continue until the required Top-10% count is filled. If the count cannot be filled, block the portfolio. Unresolved sector constraints produce a visible warning and retain `PAPER_ONLY` status.
-- Convert target dollars to whole shares using supplied positive reference prices.
-- Rebalance draft equals target shares minus user-supplied current shares.
-- The output column is `suggested_trade_shares`; no `approved_trade_shares` or broker order object is produced.
-- Every row has `review_status=REVIEW_REQUIRED`.
-- Missing/invalid price, stale account snapshot or missing held security creates an explicit blocker.
+- The core target portfolio contains security ID, score, rank and target weight. It requires no positions, account NAV or share conversion.
+- The optional execution helper is invoked separately with target weights, user-supplied current positions, account NAV and positive reference prices.
+- The helper converts target dollars to whole shares and calculates target shares minus current shares.
+- Its output column is `suggested_trade_shares`; no `approved_trade_shares` or broker order object is produced.
+- Every helper row has `review_status=REVIEW_REQUIRED`.
+- Without a helper request, record `execution_helper_status=NOT_REQUESTED` and create no rebalance-draft file.
+- Missing/invalid helper inputs produce `execution_helper_status=BLOCKED_HELPER` and explicit helper blockers. They do not invalidate a completed ranking or target-weight portfolio.
 
-Required tables:
+Core required tables:
 
 ```text
 data_checks.csv
 alpha_scores.parquet
 stock_ranking.csv
 target_portfolio.csv
-manual_rebalance_draft.csv
 blocked_items.csv
 selection_review.xlsx
 ```
+
+`manual_rebalance_draft.csv` and its workbook sheet are conditional outputs created only when the optional execution helper succeeds.
 
 ## 10. Forward Paper Log contract
 
@@ -234,7 +250,7 @@ At signal creation it records:
 - Active Pool ID and hash;
 - universe ID and hash;
 - provider and raw-data hashes;
-- ranked stock list, targets and rebalance-draft hash;
+- ranked stock list, targets, execution-helper status and optional rebalance-draft hash;
 - status and blockers;
 - `live_orders_submitted=0`.
 
@@ -248,11 +264,13 @@ V5 Lite is accepted when:
 
 1. Catalog generation accounts for all 135 formulas exactly once.
 2. The 15 Alpaca-only VWAP factors and unresolved mechanism tags are visible but excluded from the default pool.
-3. Human decisions freeze into a non-overwritable, hashed 6-8 factor Active Pool.
-4. A 499-stock eligible input blocks; a 500-stock input runs; a 1001-stock input deterministically keeps 1000.
-5. Only Active Pool factors are computed and SPY never enters the ranking.
-6. Composite coverage failure creates no target portfolio.
-7. A valid run creates Top-10% equal-weight targets and a manual draft with `REVIEW_REQUIRED` status.
-8. No code path calls a broker order/cancel endpoint.
-9. Forward paper events are append-only and duplicate signal IDs are rejected.
-10. Existing V4 sample tests and the full repository regression suite remain green.
+3. The catalog review view contains only the four approved historical metrics and labels them `DIAGNOSTIC_ONLY` with evidence scope.
+4. Human decisions freeze into a non-overwritable, hashed 6-8 factor Active Pool; repeated mechanisms produce a warning rather than a blocker.
+5. A 499-stock eligible input blocks; a 500-stock input runs; a 1001-stock input deterministically keeps 1000.
+6. Only Active Pool factors are computed and SPY never enters the ranking.
+7. Composite coverage failure creates no target portfolio.
+8. A valid core run creates Top-10% equal-weight target weights without account inputs.
+9. A requested helper with valid inputs creates a manual draft with `REVIEW_REQUIRED`; an absent or blocked helper never removes the core selection artifacts.
+10. No code path calls a broker order/cancel endpoint.
+11. Forward paper events are append-only and duplicate signal IDs are rejected.
+12. Existing V4 sample tests and the full repository regression suite remain green.

@@ -9,7 +9,7 @@
 
 当前设计以 BRAIN 的经济假设为来源，使用已有 Alpaca / Tiingo 能力构造项目自己的直接因子与 Proxy Alpha。主方案见 [原工程设计方案](../2026-09-06-us-equity-alpha-implementation-plan.md)，重点为第 6.3–6.8 节、T2b 和 QA37–48。
 
-下一阶段采用轻量个人选股路线：V4 基础库保持不可覆盖，新增 Alpha Catalog、人工审核的 Active Pool、当前500–1000只流动性美股池、配置驱动的每日排名、手动调仓草稿和前瞻 Paper 记录。ML 扩展不在本阶段实施。参见 [V5 Lite 设计](docs/superpowers/specs/2026-09-15-v5-lite-alpha-selection-design.md) 与 [V5 Lite 实施计划](docs/superpowers/plans/2026-09-15-v5-lite-alpha-selection.md)。
+下一阶段采用轻量个人选股路线：V4 基础库保持不可覆盖，新增结构化 Alpha Catalog、明确标为 `DIAGNOSTIC_ONLY` 的精简历史指标视图、人工审核的 Active Pool、当前500–1000只流动性美股池、配置驱动的每日排名、目标持仓和前瞻 Paper 记录。同机制入选只提示 warning；手动调仓是可选 execution helper。ML 扩展不在本阶段实施。参见 [V5 Lite 设计](docs/superpowers/specs/2026-09-15-v5-lite-alpha-selection-design.md) 与 [V5 Lite 实施计划](docs/superpowers/plans/2026-09-15-v5-lite-alpha-selection.md)。
 
 ![US Equity Alpha 工作流](docs/us-equity-alpha-workflow-v1.png)
 
