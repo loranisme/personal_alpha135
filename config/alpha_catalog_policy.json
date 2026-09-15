@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "library_version": "reconstruction-v4",
+  "default_provider": "tiingo_eod",
+  "diagnostic_value_columns": [
+    "diagnostic_rank_ic_mean_5d",
+    "diagnostic_rank_icir_5d",
+    "diagnostic_top_bottom_net_spread_5d",
+    "diagnostic_turnover_mean"
+  ]
+}

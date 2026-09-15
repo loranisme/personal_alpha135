@@ -118,6 +118,15 @@ def _parser() -> argparse.ArgumentParser:
         help="Fetch current Tiingo Fundamentals classifications into a hashed bundle.",
     )
     classifications.add_argument("--output", required=True, type=Path)
+    catalog = subparsers.add_parser(
+        "build-alpha-catalog",
+        help="Build the immutable V4 structural catalog and diagnostic-only review view.",
+    )
+    catalog.add_argument("--library", required=True, type=Path)
+    catalog.add_argument("--manifest", required=True, type=Path)
+    catalog.add_argument("--policy", required=True, type=Path)
+    catalog.add_argument("--diagnostics", type=Path)
+    catalog.add_argument("--output", required=True, type=Path)
     return parser
 
 
@@ -341,6 +350,28 @@ def main(argv: Sequence[str] | None = None) -> int:
             "row_count": len(frame),
             "historical_pit_verified": False,
             "output": str(args.output),
+        })
+        return 0
+    if args.command == "build-alpha-catalog":
+        from .alpha_catalog import write_alpha_catalog
+
+        try:
+            paths = write_alpha_catalog(
+                args.library,
+                args.manifest,
+                args.policy,
+                args.output,
+                args.diagnostics,
+            )
+        except (FileExistsError, OSError, ValueError, KeyError, TypeError) as exc:
+            _emit({"status": "BLOCKED_CONFIG", "errors": [str(exc)]})
+            return 2
+        _emit({
+            "status": "PASS",
+            "artifact_type": "V5_ALPHA_CATALOG",
+            "output": str(args.output),
+            "files": {key: str(path) for key, path in paths.items()},
+            "live_orders_submitted": 0,
         })
         return 0
     _emit({"command": args.command, "status": "NOT_IMPLEMENTED"})

@@ -528,6 +528,22 @@ def _node_required_history(node: ast.AST, variables: dict[str, int] | None = Non
     )
 
 
+def required_history_sessions(expression: str, settings: Mapping[str, Any]) -> int:
+    """Return conservative source rows required for one finite factor value."""
+    try:
+        tree = ast.parse(expression, mode="exec")
+    except SyntaxError as exc:
+        raise ValueError("INVALID_FACTOR_EXPRESSION") from exc
+    try:
+        delay = int(settings.get("delay", 0))
+        decay = int(settings.get("decay", 0))
+    except (TypeError, ValueError) as exc:
+        raise ValueError("INVALID_FACTOR_SETTINGS") from exc
+    if delay < 0 or decay < 0:
+        raise ValueError("INVALID_FACTOR_SETTINGS")
+    return _node_required_history(tree) + delay + max(decay - 1, 0)
+
+
 def verify_factors(conversion: Mapping[str, Any],
                    provider_inputs: Mapping[str, Mapping[str, pd.DataFrame]],
                    neutralization_inputs: Mapping[str, Mapping[str, pd.DataFrame]] | None = None,
