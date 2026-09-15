@@ -11,18 +11,24 @@ def build_personal_targets(ranking,universe,policy):
     ranked=ranked.dropna(subset=["composite_score"]).sort_values(["composite_score","security_id"],ascending=[False,True],kind="stable")
     k=math.ceil(len(ranked)*float(policy["top_fraction"])); weight=float(policy["invested_weight"])/k
     if weight>float(policy["max_single_name_weight"])+1e-12: raise ValueError("SINGLE_NAME_CAP_INCOMPATIBLE")
-    selected=[]; sector_weight={}
-    for row in ranked.to_dict("records"):
-        sector=row.get("sector")
-        if pd.isna(sector): continue
-        if sector_weight.get(sector,0)+weight<=float(policy["max_sector_weight"])+1e-12:
-            selected.append(row);sector_weight[sector]=sector_weight.get(sector,0)+weight
-        if len(selected)==k: break
+    selected=[]; sector_weight={};warnings=[]
+    classification_complete=not ranked.sector.isna().any()
+    if not classification_complete:
+        warnings.append("SECTOR_CONSTRAINT_UNAVAILABLE")
+        selected=ranked.head(k).to_dict("records")
+    else:
+        for row in ranked.to_dict("records"):
+            sector=row.get("sector")
+            if sector_weight.get(sector,0)+weight<=float(policy["max_sector_weight"])+1e-12:
+                selected.append(row);sector_weight[sector]=sector_weight.get(sector,0)+weight
+            if len(selected)==k: break
     if len(selected)<k: raise ValueError("SECTOR_CAP_CANNOT_FILL_TARGET_COUNT")
     targets=pd.DataFrame(selected).assign(target_weight=weight)
     targets["rank"]=range(1,len(targets)+1)
-    targets=pd.concat([targets,pd.DataFrame([{"security_id":"CASH","composite_score":None,"sector":None,"target_weight":float(policy["minimum_cash"]),"rank":None}])],ignore_index=True)
-    return {"status":"SELECTION_READY","stock_ranking":ranked.reset_index(drop=True),"target_portfolio":targets,"execution_helper_status":"NOT_REQUESTED","blockers":[]}
+    targets=targets.astype(object)
+    cash={column:None for column in targets.columns};cash.update(security_id="CASH",target_weight=float(policy["minimum_cash"]))
+    targets=pd.concat([targets,pd.DataFrame([cash],columns=targets.columns,dtype=object)],ignore_index=True)
+    return {"status":"SELECTION_READY","portfolio_status":"PAPER_ONLY" if warnings else "CONSTRAINTS_APPLIED","stock_ranking":ranked.reset_index(drop=True),"target_portfolio":targets,"execution_helper_status":"NOT_REQUESTED","blockers":[],"warnings":warnings}
 
 def build_manual_rebalance_helper(targets,positions,prices,nav,policy,*,now):
     now_ts=pd.Timestamp(now); 
@@ -38,8 +44,10 @@ def build_manual_rebalance_helper(targets,positions,prices,nav,policy,*,now):
     stocks["target_shares"]=(stocks.target_weight*float(nav)/stocks.reference_price).apply(math.floor)
     current=positions[["security_id","current_shares"]]
     if (current.current_shares%1!=0).any(): return {"execution_helper_status":"BLOCKED_HELPER","blockers":["NON_INTEGER_POSITION"]}
-    draft=stocks.merge(current,on="security_id",how="outer").fillna({"target_weight":0,"target_shares":0,"current_shares":0})
-    draft["target_shares"]=draft.target_shares.astype(int);draft["current_shares"]=draft.current_shares.astype(int)
+    draft=stocks.merge(current,on="security_id",how="outer")
+    draft["target_weight"]=pd.to_numeric(draft.target_weight,errors="coerce").fillna(0.0)
+    draft["target_shares"]=pd.to_numeric(draft.target_shares,errors="coerce").fillna(0).astype(int)
+    draft["current_shares"]=pd.to_numeric(draft.current_shares,errors="coerce").fillna(0).astype(int)
     draft["suggested_trade_shares"]=draft.target_shares-draft.current_shares
     draft["review_status"]="REVIEW_REQUIRED"
     return {"execution_helper_status":"EXECUTION_HELPER_READY","manual_rebalance_draft":draft,"blockers":[]}

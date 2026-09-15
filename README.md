@@ -11,6 +11,19 @@
 
 下一阶段采用轻量个人选股路线：V4 基础库保持不可覆盖，新增结构化 Alpha Catalog、明确标为 `DIAGNOSTIC_ONLY` 的精简历史指标视图、人工审核的 Active Pool、当前500–1000只流动性美股池、配置驱动的每日排名、目标持仓和前瞻 Paper 记录。同机制入选只提示 warning；手动调仓是可选 execution helper。ML 扩展不在本阶段实施。参见 [V5 Lite 设计](docs/superpowers/specs/2026-09-15-v5-lite-alpha-selection-design.md) 与 [V5 Lite 实施计划](docs/superpowers/plans/2026-09-15-v5-lite-alpha-selection.md)。
 
+V5 Lite 操作顺序如下。所有路径均为示例运行目录；凭证只通过环境变量传入下载脚本：
+
+```bash
+us-equity-alpha build-alpha-catalog --library private/project_factor_library/reconstruction-v4/project_factor_library.json --manifest private/project_factor_library/reconstruction-v4/manifest.json --policy config/alpha_catalog_policy.json --output runs/catalog
+us-equity-alpha build-active-pool-review --catalog runs/catalog/alpha_catalog_review.csv --coverage inputs/factor_coverage.csv --policy config/active_pool_policy.json --output runs/active_pool_review.xlsx
+# 人工在 Decision Template 中填写 INCLUDE/WATCHLIST/REJECT 与 comment 后：
+us-equity-alpha freeze-active-pool --review runs/active_pool_review.xlsx --library private/project_factor_library/reconstruction-v4/project_factor_library.json --manifest-sha256 "$(shasum -a 256 private/project_factor_library/reconstruction-v4/manifest.json | awk '{print $1}')" --policy config/active_pool_policy.json --output runs/active_pool.json
+us-equity-alpha build-current-universe --assets inputs/assets.csv --bars inputs/bars --policy config/current_universe_policy.json --as-of 2026-09-15T21:00:00+08:00 --output runs/current_universe
+us-equity-alpha daily-select --library private/project_factor_library/reconstruction-v4/project_factor_library.json --active-pool runs/active_pool.json --universe runs/current_universe/eligible_universe.csv --market-data inputs/panels --policy config/personal_selection_policy.json --as-of 2026-09-15T00:00:00Z --output runs/selection --paper-log runs/forward_paper.sqlite
+```
+
+只有需要把目标权重换算为手工买卖股数时，才在 `daily-select` 后追加 `--execution-helper --positions ... --account ... --reference-prices ...`。该 helper 只生成 `REVIEW_REQUIRED` 草稿，不创建或发送券商订单。ML 扩展和历史 PIT 认证不属于 V5 Lite。
+
 ![US Equity Alpha 工作流](docs/us-equity-alpha-workflow-v1.png)
 
 ## 实际实现状态

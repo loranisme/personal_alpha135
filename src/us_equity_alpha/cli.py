@@ -154,6 +154,12 @@ def _parser() -> argparse.ArgumentParser:
     current_universe.add_argument("--policy", required=True, type=Path)
     current_universe.add_argument("--as-of", required=True)
     current_universe.add_argument("--output", required=True, type=Path)
+    daily_select=subparsers.add_parser("daily-select",help="Run V5 Lite selection; optional helper never submits orders.")
+    for name in ("library","active-pool","universe","market-data","policy","output","paper-log"):
+        daily_select.add_argument("--"+name,required=True,type=Path)
+    daily_select.add_argument("--as-of",required=True)
+    daily_select.add_argument("--execution-helper",action="store_true")
+    daily_select.add_argument("--positions",type=Path);daily_select.add_argument("--account",type=Path);daily_select.add_argument("--reference-prices",type=Path)
     return parser
 
 
@@ -490,6 +496,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             "live_orders_submitted": 0,
         })
         return 0
+    if args.command == "daily-select":
+        from .v5_lite import run_v5_lite_from_files
+        try:
+            result=run_v5_lite_from_files(library=args.library,active_pool=args.active_pool,universe=args.universe,market_data=args.market_data,policy=args.policy,session=args.as_of,output=args.output,paper_log=args.paper_log,execution_helper=args.execution_helper,positions=args.positions,account=args.account,reference_prices=args.reference_prices)
+        except (FileExistsError,OSError,ValueError,KeyError,TypeError) as exc:
+            reason=str(exc);status="BLOCKED_DATA" if "BELOW_500" in reason or "INSUFFICIENT" in reason else "BLOCKED_CONFIG"
+            _emit({"status":status,"errors":[reason],"live_orders_submitted":0});return 4 if status=="BLOCKED_DATA" else 2
+        _emit(result);return 4 if result["status"]=="BLOCKED_DATA" else 0
     _emit({"command": args.command, "status": "NOT_IMPLEMENTED"})
     return 3
 

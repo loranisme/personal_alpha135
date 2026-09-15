@@ -32,3 +32,10 @@ def test_stale_helper_is_blocked_without_changing_core_targets():
     assert helper["execution_helper_status"]=="BLOCKED_HELPER"
     assert helper["blockers"]==["STALE_ACCOUNT_SNAPSHOT"]
     assert len(core["target_portfolio"])==51
+
+def test_missing_classification_keeps_paper_targets_with_warning():
+    universe=_universe();universe.loc[0,"sector"]=None
+    result=build_personal_targets(_ranking(),universe,_policy())
+    assert len(result["target_portfolio"])==51
+    assert result["warnings"]==["SECTOR_CONSTRAINT_UNAVAILABLE"]
+    assert result["portfolio_status"]=="PAPER_ONLY"
