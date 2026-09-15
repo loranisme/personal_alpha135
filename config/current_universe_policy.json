@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "exchanges": ["NYSE", "NASDAQ", "NYSE_AMERICAN"],
+  "security_types": ["COMMON_STOCK", "REIT"],
+  "minimum_sessions": 252,
+  "minimum_raw_close": 5.0,
+  "adv_window": 60,
+  "minimum_adv_usd": 10000000,
+  "minimum_universe_size": 500,
+  "maximum_universe_size": 1000
+}

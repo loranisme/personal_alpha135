@@ -144,6 +144,16 @@ def _parser() -> argparse.ArgumentParser:
     pool_freeze.add_argument("--manifest-sha256", required=True)
     pool_freeze.add_argument("--policy", required=True, type=Path)
     pool_freeze.add_argument("--output", required=True, type=Path)
+    current_universe = subparsers.add_parser(
+        "build-current-universe",
+        help="Build a current 500-1000 security liquid U.S. universe snapshot.",
+    )
+    current_universe.add_argument("--assets", required=True, type=Path)
+    current_universe.add_argument("--bars", required=True, type=Path)
+    current_universe.add_argument("--classifications", type=Path)
+    current_universe.add_argument("--policy", required=True, type=Path)
+    current_universe.add_argument("--as-of", required=True)
+    current_universe.add_argument("--output", required=True, type=Path)
     return parser
 
 
@@ -435,6 +445,50 @@ def main(argv: Sequence[str] | None = None) -> int:
             _emit({"status": "BLOCKED_CONFIG", "errors": [str(exc)]})
             return 2
         _emit(result)
+        return 0
+    if args.command == "build-current-universe":
+        from .current_universe import write_current_universe_snapshot
+        import pandas as pd
+
+        def read_frame(path):
+            return pd.read_parquet(path) if path.suffix == ".parquet" else pd.read_csv(path)
+
+        try:
+            assets = read_frame(args.assets)
+            consolidated_path = args.bars / "bars.parquet"
+            if consolidated_path.is_file():
+                consolidated = pd.read_parquet(consolidated_path)
+                if "security_id" not in consolidated:
+                    raise ValueError("CONSOLIDATED_BARS_SECURITY_ID_REQUIRED")
+                bars = {
+                    str(security_id): rows.drop(columns="security_id").reset_index(drop=True)
+                    for security_id, rows in consolidated.groupby("security_id", sort=False)
+                }
+            else:
+                bar_paths = sorted(args.bars.glob("*.parquet"))
+                if not bar_paths:
+                    raise ValueError("BAR_FILES_REQUIRED")
+                bars = {path.stem: pd.read_parquet(path) for path in bar_paths}
+            classifications = (
+                read_frame(args.classifications) if args.classifications is not None else None
+            )
+            policy = json.loads(args.policy.read_text(encoding="utf-8"))
+            paths = write_current_universe_snapshot(
+                assets, bars, args.as_of, policy, args.output, classifications
+            )
+            evidence = json.loads(paths["evidence"].read_text(encoding="utf-8"))
+        except (FileExistsError, OSError, ValueError, KeyError, TypeError) as exc:
+            reason = str(exc)
+            status = "BLOCKED_DATA" if reason.startswith("BLOCKED_INSUFFICIENT_UNIVERSE") else "BLOCKED_CONFIG"
+            _emit({"status": status, "errors": [reason], "live_orders_submitted": 0})
+            return 4 if status == "BLOCKED_DATA" else 2
+        _emit({
+            "status": "PASS_CURRENT_ONLY",
+            "eligible_count": evidence["eligible_count"],
+            "historical_pit_verified": False,
+            "output": str(args.output),
+            "live_orders_submitted": 0,
+        })
         return 0
     _emit({"command": args.command, "status": "NOT_IMPLEMENTED"})
     return 3

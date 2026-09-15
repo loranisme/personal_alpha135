@@ -1,5 +1,5 @@
 import pytest
-from us_equity_alpha.alpaca_data import fetch_bars
+from us_equity_alpha.alpaca_data import fetch_bars, fetch_current_assets
 
 class Response:
     status_code=200
@@ -29,3 +29,52 @@ def test_missing_secret_never_requests_network():
     with pytest.raises(ValueError,match='AUTH_REQUIRED'):
         fetch_bars('AAPL','2024-01-02','2024-01-03','fake-key','',session=session)
     assert not session.calls
+
+
+class AssetsSession:
+    def __init__(self, payload=None):
+        self.calls = []
+        self.payload = payload or [
+            {
+                "id": "asset-1",
+                "symbol": "AAPL",
+                "exchange": "NASDAQ",
+                "status": "active",
+                "tradable": True,
+                "class": "us_equity",
+                "name": "Apple Inc. Common Stock",
+            }
+        ]
+
+    def get(self, url, **kwargs):
+        self.calls.append((url, kwargs))
+        response = Response(self.payload)
+        return response
+
+
+def test_current_assets_request_is_read_only_and_credential_safe():
+    session = AssetsSession()
+    frame, evidence = fetch_current_assets("fake-key", "fake-secret", session=session)
+    assert frame.to_dict("records")[0]["security_id"] == "asset-1"
+    assert frame.to_dict("records")[0]["security_type"] == "COMMON_STOCK"
+    assert session.calls[0][0] == "https://paper-api.alpaca.markets/v2/assets"
+    assert session.calls[0][1]["params"] == {"status": "active", "asset_class": "us_equity"}
+    assert session.calls[0][1]["allow_redirects"] is False
+    assert "fake-key" not in str(evidence)
+    assert "fake-secret" not in str(evidence)
+
+
+def test_nyse_arca_is_not_relabelled_as_nyse_american():
+    session = AssetsSession([
+        {
+            "id": "asset-2",
+            "symbol": "TEST",
+            "exchange": "NYSEARCA",
+            "status": "active",
+            "tradable": True,
+            "class": "us_equity",
+            "name": "Test Common Stock",
+        }
+    ])
+    frame, _ = fetch_current_assets("fake-key", "fake-secret", session=session)
+    assert frame.exchange.tolist() == ["NYSEARCA"]

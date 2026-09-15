@@ -1,7 +1,82 @@
-"""Read-only Alpaca daily bars with explicit feed and bounded pagination."""
-from datetime import date,timedelta
+"""Read-only Alpaca market data and current asset metadata adapters."""
+from datetime import date,timedelta,datetime,timezone
 import requests
 import pandas as pd
+
+
+def _asset_security_type(asset):
+    name = str(asset.get("name", "")).upper()
+    exclusions = {
+        "ADR": (" ADR", "DEPOSITARY", " ADS"),
+        "ETF": (" ETF", "EXCHANGE TRADED FUND"),
+        "ETN": (" ETN",),
+        "FUND": (" FUND", "TRUST FUND"),
+        "PREFERRED": ("PREFERRED",),
+        "WARRANT": ("WARRANT",),
+        "UNIT": (" UNIT",),
+    }
+    for security_type, markers in exclusions.items():
+        if any(marker in name for marker in markers):
+            return security_type
+    if "REIT" in name or "REAL ESTATE INVESTMENT TRUST" in name:
+        return "REIT"
+    return "COMMON_STOCK" if asset.get("class") == "us_equity" else "UNKNOWN"
+
+
+def fetch_current_assets(key, secret, *, session=None):
+    """Fetch current Alpaca U.S. assets without returning request credentials."""
+    if not key or not secret:
+        raise ValueError("AUTH_REQUIRED")
+    client = session or requests.Session()
+    endpoint = "https://paper-api.alpaca.markets/v2/assets"
+    try:
+        response = client.get(
+            endpoint,
+            params={"status": "active", "asset_class": "us_equity"},
+            headers={"APCA-API-KEY-ID": key, "APCA-API-SECRET-KEY": secret},
+            timeout=30,
+            allow_redirects=False,
+        )
+    except requests.RequestException as exc:
+        raise ValueError("ALPACA_NETWORK_" + type(exc).__name__) from None
+    if response.status_code != 200:
+        raise ValueError("ALPACA_HTTP_" + str(response.status_code))
+    try:
+        payload = response.json()
+    except ValueError:
+        raise ValueError("ALPACA_INVALID_JSON") from None
+    if not isinstance(payload, list):
+        raise ValueError("ALPACA_INVALID_ASSET_SCHEMA")
+    fetched_at = datetime.now(timezone.utc).isoformat()
+    rows = []
+    for asset in payload:
+        required = {"id", "symbol", "exchange", "status", "tradable", "class"}
+        if not isinstance(asset, dict) or not required.issubset(asset):
+            raise ValueError("ALPACA_INVALID_ASSET")
+        rows.append(
+            {
+                "security_id": asset["id"],
+                "ticker": asset["symbol"],
+                "exchange": "NYSE_AMERICAN" if asset["exchange"] == "AMEX" else asset["exchange"],
+                "status": str(asset["status"]).upper(),
+                "tradable": bool(asset["tradable"]),
+                "security_type": _asset_security_type(asset),
+                "domicile": "US",
+                "source": "alpaca_assets",
+                "available_at": fetched_at,
+            }
+        )
+    frame = pd.DataFrame(rows)
+    if not frame.empty and frame.security_id.duplicated().any():
+        raise ValueError("ALPACA_DUPLICATE_ASSET_ID")
+    evidence = {
+        "endpoint": endpoint,
+        "request_id": response.headers.get("X-Request-ID"),
+        "fetched_at": fetched_at,
+        "asset_count": len(frame),
+        "security_type_method": "NAME_HEURISTIC_FAIL_CLOSED",
+    }
+    return frame, evidence
 
 
 def fetch_bars(symbol,start,end,key,secret,*,feed='sip',session=None):
