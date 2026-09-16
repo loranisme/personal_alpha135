@@ -255,6 +255,8 @@ def build_proposed_pool(
     blockers = []
     if len(identities) < int(config["active_pool_min"]):
         blockers.append("COMPOSITE_BLOCKED_INSUFFICIENT_ALPHA")
+    if len(identities) > int(config["active_pool_max"]):
+        blockers.append("COMPOSITE_BLOCKED_ACTIVE_POOL_EXCEEDS_MAX")
     proposal = {
         "schema_version": 1,
         "artifact_type": "V5_1_PROPOSED_ACTIVE_POOL",
@@ -272,4 +274,3 @@ def build_proposed_pool(
     }
     proposal["content_hash"] = _canonical_hash(proposal)
     return proposal
-

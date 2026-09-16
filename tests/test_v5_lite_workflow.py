@@ -9,8 +9,8 @@ def _fixture(n=500,helper=False):
     dates=pd.bdate_range("2025-01-01",periods=4,tz="UTC");ids=[f"S{i:04d}" for i in range(n)]
     close=pd.DataFrame(np.arange(4*(n+1)).reshape(4,n+1)+100.,index=dates,columns=ids+["SPY"])
     factors=[]
-    for i in range(6): factors.append({"local_factor_id":f"F{i}","expression":"rank(ts_delta(close, 1))","field_bindings":{"close":"close"},"allowed_providers":["tiingo_eod"],"build_status":"COMPUTE_VERIFIED","usage_tier":"DIAGNOSTIC_ONLY","provenance_kind":"LOCAL_RECONSTRUCTION","settings":{"delay":0,"decay":0,"neutralization":"NONE"}})
-    pool={"schema_version":1,"status":"FROZEN","active_pool_id":"pool","library_version":"reconstruction-v4","v4_manifest_sha256":"a"*64,"provider":"tiingo_eod","selected_factors":[{"local_factor_id":f"F{i}","direction":1,"weight":str(1/6)} for i in range(6)],"decision_list":[],"warnings":[],"selection_basis":"HUMAN","data_exposure":{},"live_orders_submitted":0}
+    for i in range(8): factors.append({"local_factor_id":f"F{i}","expression":"rank(ts_delta(close, 1))","field_bindings":{"close":"close"},"allowed_providers":["tiingo_eod"],"build_status":"COMPUTE_VERIFIED","usage_tier":"DIAGNOSTIC_ONLY","provenance_kind":"LOCAL_RECONSTRUCTION","settings":{"delay":0,"decay":0,"neutralization":"NONE"}})
+    pool={"schema_version":1,"status":"FROZEN","active_pool_id":"pool","library_version":"reconstruction-v4","v4_manifest_sha256":"a"*64,"provider":"tiingo_eod","selected_factors":[{"local_factor_id":f"F{i}","direction":1,"weight":str(1/8)} for i in range(8)],"decision_list":[],"warnings":[],"selection_basis":"HUMAN","data_exposure":{},"live_orders_submitted":0}
     pool["content_sha256"]=hashlib.sha256(json.dumps(pool,sort_keys=True,separators=(",",":"),ensure_ascii=False,allow_nan=False).encode()).hexdigest()
     data={"library":{"factors":factors},"active_pool":pool,"provider":"tiingo_eod","inputs":{"close":close},"universe":pd.DataFrame({"security_id":ids,"sector":[f"sector-{i%10}" for i in range(n)]}),"session":dates[-1],"selection_policy":{"top_fraction":.1,"invested_weight":.95,"minimum_cash":.05,"max_single_name_weight":.02,"max_sector_weight":.25,"max_account_age_seconds":60,"rebalance":"WEEKLY_FIRST_SESSION"}}
     if helper:
@@ -65,7 +65,7 @@ def test_daily_select_cli_runs_core_file_workflow(tmp_path,capsys):
 def test_daily_select_can_compute_selected_expansion_version(tmp_path,capsys):
     data=_fixture(); market=tmp_path/"market";market.mkdir()
     selected=data["active_pool"]["selected_factors"]
-    selected[0]={"local_factor_id":"EXP1","factor_id":"EXP1","factor_version":1,"direction":1,"weight":str(1/6)}
+    selected[0]={"local_factor_id":"EXP1","factor_id":"EXP1","factor_version":1,"direction":1,"weight":str(1/8)}
     data["active_pool"]["library_version"]="V4_PLUS_EXPANSION_REGISTRY"
     data["active_pool"].pop("content_sha256")
     data["active_pool"]["content_sha256"]=hashlib.sha256(json.dumps(data["active_pool"],sort_keys=True,separators=(",",":"),ensure_ascii=False,allow_nan=False).encode()).hexdigest()
@@ -93,7 +93,7 @@ def test_daily_select_can_compute_selected_expansion_version(tmp_path,capsys):
 def test_daily_select_uses_selected_expansion_version_when_factor_id_matches_base(tmp_path,capsys):
     data=_fixture(); market=tmp_path/"market";market.mkdir()
     selected=data["active_pool"]["selected_factors"]
-    selected[0]={"local_factor_id":"F0","factor_id":"F0","factor_version":5,"direction":1,"weight":str(1/6)}
+    selected[0]={"local_factor_id":"F0","factor_id":"F0","factor_version":5,"direction":1,"weight":str(1/8)}
     data["active_pool"]["library_version"]="V4_PLUS_EXPANSION_REGISTRY"
     data["active_pool"].pop("content_sha256")
     data["active_pool"]["content_sha256"]=hashlib.sha256(json.dumps(data["active_pool"],sort_keys=True,separators=(",",":"),ensure_ascii=False,allow_nan=False).encode()).hexdigest()

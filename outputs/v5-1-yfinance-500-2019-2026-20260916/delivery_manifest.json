@@ -1,0 +1,26 @@
+{
+  "alpha_effectiveness_claim_allowed": false,
+  "artifact_type": "V5_1_YFINANCE_LONG_HISTORY_ENGINEERING_ACCEPTANCE_DELIVERY",
+  "files": {
+    "outputs/v5-1-yfinance-500-2019-2026-20260916/V5_1_Lite_YFinance_500_Long_History_Filter_Review.xlsx": "78fea50ff80f815d2b077a241e84befe2ee7f3014f73cde1bd32c90e44c1cfde",
+    "outputs/v5-1-yfinance-500-2019-2026-20260916/V5_1_Lite_YFinance_500_Long_History_Filter_Review.xlsx.qa.json": "5cb7f8942e8b6c1bf61732459a7faa751516b298d2e53568d7224695b8b46d24",
+    "outputs/v5-1-yfinance-500-2019-2026-20260916/evidence/alpaca_short_history_classification.json": "08e88cf65ec96e63a6e26762cd90eba592893ddec4f2fadd40da94daf1f26563",
+    "outputs/v5-1-yfinance-500-2019-2026-20260916/evidence/composite_comparison.csv": "40f108d3ebb3eda443f626e3111e33f92cd99ff1c3b9b1c04d7173d5d63d79af",
+    "outputs/v5-1-yfinance-500-2019-2026-20260916/evidence/filter_config.json": "31ffa611cc130165fd722c322d0e65e9cf317e9e37521e80ae6be0d341652006",
+    "outputs/v5-1-yfinance-500-2019-2026-20260916/evidence/filter_decisions.csv": "285e8134de548262bdb4102788e1dc80fcae4021fa79c8a425f2d9d15f431609",
+    "outputs/v5-1-yfinance-500-2019-2026-20260916/evidence/filter_manifest.json": "077135f7163efb279a10d03e50090fe5ec937c121c7bcc367fba2b1f2fcec489",
+    "outputs/v5-1-yfinance-500-2019-2026-20260916/evidence/final_selected_factors.csv": "a1898376e26d3abbc99aad9dc246b093e240c576cdd03375254897896297866d",
+    "outputs/v5-1-yfinance-500-2019-2026-20260916/evidence/gate_funnel.csv": "234628dc3257cde3b77485320f56e571c41dbe8828ec76ceb62c095e12b30dc4",
+    "outputs/v5-1-yfinance-500-2019-2026-20260916/evidence/gate_pass_factors.csv": "810abfeb319dcb53474df63def9d0130896de825d3a10ccd4f64b23ae1b0500f",
+    "outputs/v5-1-yfinance-500-2019-2026-20260916/evidence/proposed_active_pool.json": "05e4903a73a6c118608bb8d8d46410192874379866179d730ee98047095a9b11",
+    "outputs/v5-1-yfinance-500-2019-2026-20260916/evidence/redundancy_deletions.csv": "e4b0fe7dee374db8a0deb3a3ba63525e117dca79c9a5a2009c52f56de8b7ec1e",
+    "outputs/v5-1-yfinance-500-2019-2026-20260916/evidence/run_summary.json": "a442a88ee3d4a938845b9ae6c71a7697926242ff619f01fe5462babb120c0531",
+    "outputs/v5-1-yfinance-500-2019-2026-20260916/evidence/source_evidence.json": "a3fa44183298735ec653779ccc1c61cc5b52cb079e50b0e9d5ff28670dab2778"
+  },
+  "historical_pit_verified": false,
+  "live_orders_submitted": 0,
+  "run_id": "v5-1-filter-3bc4030308782cd7bbe8",
+  "selection_evidence": "DEVELOPMENT_EXPOSED",
+  "source_run": "private/runs/v5-1-yfinance-500-2019-2026-filter-v2",
+  "survivorship_bias": true
+}

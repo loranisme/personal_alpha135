@@ -1,0 +1,16 @@
+{
+  "sheet_names": [
+    "Summary",
+    "Gate Funnel",
+    "Factor Decisions",
+    "Final Pool",
+    "Redundancy",
+    "Composite Comparison",
+    "Audit"
+  ],
+  "formula_error_scan": "{\"kind\":\"notice\",\"message\":\"Cell search matched 0 entries.\"}",
+  "summary_inspection": "{\"kind\":\"table\",\"sheet\":\"Summary\",\"address\":\"A2:C18\",\"rows\":17,\"cols\":3,\"values\":[[\"V5.1 Lite 长历史 Alpha Filter 工程验收\",null,null],[\"Yahoo Finance 500-stock current-snapshot sample; results are DEVELOPMENT_EXPOSED and not proof of Alpha effectiveness\",null,null],[null,null,null],[\"Item\",\"Value\",\"Interpretation\"],[\"Run status\",\"READY_FOR_HUMAN_REVIEW\",\"Ready for human review; not frozen for production\"],[\"Filter run ID\",\"v5-1-filter-3bc4030308782cd7bbe8\",\"Immutable run identifier\"],[\"Provider adapter\",\"yfinance_eod\",\"Saved Yahoo Finance batch files\"],[\"Sample\",\"2019-01-02 to 2026-09-14\",\"1935 daily sessions\"],[\"Universe\",500,\"CURRENT_SNAPSHOT_SURVIVORSHIP_BIASED\"],[\"Catalog factor versions\",135,\"Full V4 local library\"],[\"Hard Gate pass\",29,\"Before redundancy removal\"],[\"Redundancy removals\",15,\"No pool-cap removal\"],[\"Final proposed pool\",14,\"Within approved 8–15 range\"],[\"Timing contract\",\"WEEKLY_REBALANCE_SIGNAL\",\"T_CLOSE_T1_OPEN_T6_OPEN\"],[\"Evidence\",\"DEVELOPMENT_EXPOSED\",\"Historical PIT not verified; survivorship bias present\"],[\"Effectiveness claim\",\"NOT ALLOWED\",\"Engineering workflow acceptance only\"],[\"Live orders\",0,\"Manual review workflow; no broker submission\"]]}",
+  "preview_count": 7,
+  "run_id": "v5-1-filter-3bc4030308782cd7bbe8",
+  "source_filter_dir": "/Users/Administrator/Documents/Codex/2026-09-06/ww/outputs/us_equity_alpha/private/runs/v5-1-yfinance-500-2019-2026-filter-v2/filter"
+}

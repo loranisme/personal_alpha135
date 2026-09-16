@@ -490,7 +490,7 @@ def freeze_filtered_pool(
     if not decisions.decision.isin(["APPROVE", "REJECT"]).all():
         raise ValueError("INVALID_REVIEW_DECISION")
     approved = decisions[decisions.decision.eq("APPROVE")].copy()
-    if not 5 <= len(approved) <= 12:
+    if not 8 <= len(approved) <= 15:
         raise ValueError("COMPOSITE_BLOCKED_INSUFFICIENT_ALPHA")
     frozen_at = datetime.now(timezone.utc).isoformat()
     weight = str(1 / len(approved))

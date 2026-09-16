@@ -1,0 +1,8 @@
+stage_order,stage,remaining_factor_versions,removed_at_stage,removal_status
+1,Catalog versions,135,,
+2,Catalog eligible,97,38.0,CATALOG_INELIGIBLE
+3,Data gate passed,97,0.0,REJECT_DATA
+4,Signal gate passed,63,34.0,REJECT_SIGNAL
+5,Stability gate passed,46,17.0,WATCHLIST_UNSTABLE
+6,Usability gate passed,29,17.0,WATCHLIST_HIGH_TURNOVER
+7,Final selected after redundancy and cap,14,15.0,REJECT_REDUNDANT_OR_POOL_CAP

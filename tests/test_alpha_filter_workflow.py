@@ -121,8 +121,8 @@ def _fixture_paths(tmp_path: Path) -> dict:
         "max_weekly_top10_turnover": 0.80,
         "score_corr_conflict": 0.80,
         "top10_overlap_conflict": 0.70,
-        "active_pool_min": 5,
-        "active_pool_max": 12,
+        "active_pool_min": 8,
+        "active_pool_max": 15,
         "selection_evidence": "DEVELOPMENT_EXPOSED",
         "historical_pit_verified": False,
     }
@@ -162,9 +162,9 @@ def test_filter_run_refuses_nonempty_output_directory(tmp_path):
         run_alpha_filter_from_files(**paths)
 
 
-def _reviewed_five_factor_proposal(tmp_path: Path) -> tuple[Path, Path]:
+def _reviewed_eight_factor_proposal(tmp_path: Path) -> tuple[Path, Path]:
     rows = []
-    for index in range(5):
+    for index in range(8):
         rows.append(
             {
                 "factor_id": f"F{index}",
@@ -185,7 +185,7 @@ def _reviewed_five_factor_proposal(tmp_path: Path) -> tuple[Path, Path]:
         "sample_end": "2025-12-31",
     }
     proposal = build_proposed_pool(
-        pd.DataFrame(rows), metadata, {"active_pool_min": 5, "active_pool_max": 12}
+        pd.DataFrame(rows), metadata, {"active_pool_min": 8, "active_pool_max": 15}
     )
     proposal_path = tmp_path / "proposal.json"
     proposal_path.write_text(json.dumps(proposal), encoding="utf-8")
@@ -197,7 +197,7 @@ def _reviewed_five_factor_proposal(tmp_path: Path) -> tuple[Path, Path]:
                 "decision": "APPROVE",
                 "comment": "reviewed",
             }
-            for index in range(5)
+            for index in range(8)
         ]
     )
     decisions_path = tmp_path / "decisions.csv"
@@ -206,15 +206,15 @@ def _reviewed_five_factor_proposal(tmp_path: Path) -> tuple[Path, Path]:
 
 
 def test_frozen_filtered_pool_is_accepted_by_daily_selection(tmp_path):
-    proposal, decisions = _reviewed_five_factor_proposal(tmp_path)
+    proposal, decisions = _reviewed_eight_factor_proposal(tmp_path)
     pool = freeze_filtered_pool(proposal, decisions, tmp_path / "frozen")
-    assert len(validate_active_pool(pool, pool["provider"])) == 5
+    assert len(validate_active_pool(pool, pool["provider"])) == 8
     assert pool["selection_evidence"] == "DEVELOPMENT_EXPOSED"
     assert (tmp_path / "frozen" / "active_pool.json").is_file()
 
 
 def test_freeze_rejects_unproposed_factor(tmp_path):
-    proposal, decisions = _reviewed_five_factor_proposal(tmp_path)
+    proposal, decisions = _reviewed_eight_factor_proposal(tmp_path)
     frame = pd.read_csv(decisions)
     frame.loc[0, "factor_id"] = "UNPROPOSED"
     frame.to_csv(decisions, index=False)

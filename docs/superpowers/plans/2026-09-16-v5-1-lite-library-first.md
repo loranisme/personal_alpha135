@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
-**Goal:** Add an append-only expansion registry and a compact, deterministic Alpha Filter that proposes a reviewable 5-12 factor equal-weight Active Pool without turning the project into a research platform.
+**Goal:** Add an append-only expansion registry and a compact, deterministic Alpha Filter that proposes a reviewable 8-15 factor equal-weight Active Pool without turning the project into a research platform.
 
 **Architecture:** Extend the immutable V4 catalog with independently hashed expansion records, then evaluate eligible factor versions on frozen weekly signal dates and a trade-aligned five-session label. Sequential gates and deterministic greedy conflict resolution produce a proposed pool; a separate review/freeze step emits an Active Pool compatible with the existing daily selection and paper-log path.
 
@@ -17,7 +17,7 @@
 - The label is `t close -> t+1 open -> t+6 open` using exchange sessions.
 - SPY is benchmark-only and never enters factor ranks or stock quantiles.
 - Current 2019-2026 evidence is `DEVELOPMENT_EXPOSED`, survivorship-biased and not independent OOS.
-- The default production Active Pool has 5-12 factors; the filter never weakens gates to reach five.
+- The default production Active Pool has 8-15 factors; the filter never weakens gates to reach eight.
 - Production composite weights are flat equal weights; no IC or return weighting is allowed.
 - Same family, absolute score correlation above 0.80 and Top-10% overlap above 0.70 are hard conflicts.
 - Same mechanism is a warning, not a hard conflict.
@@ -418,9 +418,9 @@ evidence fields and the existing `selected_factors` compatibility structure.
 
 - [x] **Step 5: Update daily pool validation**
 
-Change only the size contract from 6-8 to 5-12. Preserve hash, provider,
-direction, uniqueness and equal-weight checks. Add a regression proving old
-6-8 factor pools still validate.
+Change only the size contract from 6-8 to 8-15. Preserve hash, provider,
+direction, uniqueness and equal-weight checks. Add boundary regressions proving
+8 and 15 validate while 7 and 16 are rejected.
 
 - [x] **Step 6: Add CLI commands**
 
@@ -579,7 +579,7 @@ assignment scan has zero matches.
 - [x] **Step 6: Run one saved-data acceptance sample**
 
 Use the existing saved 500-security development dataset. Confirm every V4
-factor is accounted for, the run returns either a 5-12 factor proposal or the
+factor is accounted for, the run returns either an 8-15-factor proposal or the
 specified composite blocker, the old eight-factor baseline remains present,
 all manifests reopen with matching hashes and `live_orders_submitted=0`.
 

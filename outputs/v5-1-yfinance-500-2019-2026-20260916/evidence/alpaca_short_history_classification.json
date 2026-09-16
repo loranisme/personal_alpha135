@@ -1,0 +1,13 @@
+{
+  "alpha_effectiveness_inference_allowed": false,
+  "artifact_type": "RUN_EVIDENCE_CLASSIFICATION",
+  "classification": "SHORT_HISTORY_ENGINEERING_ACCEPTANCE_ONLY",
+  "historical_pit_verified": false,
+  "live_orders_submitted": 0,
+  "provider": "alpaca_sip",
+  "referenced_filter_manifest_sha256": "40b2c1aa633ebc35a911cde4ed26e7341284c09bef7d3d8c6d0abe525aa89240",
+  "sample_end": "2026-09-11",
+  "sample_start": "2024-12-06",
+  "selection_evidence": "DEVELOPMENT_EXPOSED",
+  "survivorship_bias": true
+}

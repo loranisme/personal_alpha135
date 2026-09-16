@@ -69,8 +69,8 @@ def _catalog_policy() -> dict:
 def _pool_policy() -> dict:
     return {
         "schema_version": 1,
-        "minimum_factors": 6,
-        "maximum_factors": 8,
+        "minimum_factors": 8,
+        "maximum_factors": 15,
         "default_provider": "tiingo_eod",
         "absolute_score_correlation_warning": 0.80,
         "top_decile_overlap_warning": 0.70,
@@ -114,12 +114,12 @@ def _scores(*, conflict: bool = False) -> dict[str, pd.Series]:
     return output
 
 
-def _include_first_six(path: Path) -> None:
+def _include_first_eight(path: Path) -> None:
     workbook = load_workbook(path)
     sheet = workbook["Decision Template"]
     headers = {cell.value: cell.column for cell in sheet[1]}
     for row in range(2, sheet.max_row + 1):
-        decision = "INCLUDE" if row <= 7 else "WATCHLIST"
+        decision = "INCLUDE" if row <= 9 else "WATCHLIST"
         sheet.cell(row, headers["decision"], decision)
         sheet.cell(row, headers["comment"], f"manual review {row}")
     workbook.save(path)
@@ -153,13 +153,13 @@ def test_review_workbook_limits_edits_to_decision_and_comment(tmp_path):
 def test_same_mechanism_freezes_with_warning_and_equal_weights(tmp_path):
     review = tmp_path / "review.xlsx"
     build_active_pool_review(_catalog(), _coverage(), _scores(), _pool_policy(), review)
-    _include_first_six(review)
+    _include_first_eight(review)
     output = tmp_path / "active_pool.json"
     result = freeze_active_pool(review, _library(), "b" * 64, _pool_policy(), output)
     assert result["status"] == "FROZEN_WITH_WARNINGS"
     warning = next(row for row in result["warnings"] if row["code"] == "SAME_MECHANISM_INCLUDED")
     assert set(warning["factor_ids"]) == {"F0", "F1"}
-    assert len(result["selected_factors"]) == 6
+    assert len(result["selected_factors"]) == 8
     assert sum(float(row["weight"]) for row in result["selected_factors"]) == pytest.approx(1.0)
     assert json.loads(output.read_text(encoding="utf-8"))["content_sha256"] == result["content_sha256"]
 
@@ -174,7 +174,7 @@ def test_active_pool_freezes_with_alpaca_sip_provider(tmp_path):
     )
     review = tmp_path / "review.xlsx"
     build_active_pool_review(catalog, _coverage(), None, pool_policy, review)
-    _include_first_six(review)
+    _include_first_eight(review)
     result = freeze_active_pool(review, _library(), "b" * 64, pool_policy, tmp_path / "pool.json")
     assert result["provider"] == "alpaca_sip"
 
@@ -183,7 +183,7 @@ def test_duplicate_family_remains_a_hard_blocker(tmp_path):
     library = _library(duplicate_family=True)
     review = tmp_path / "review.xlsx"
     build_active_pool_review(_catalog(library), _coverage(), _scores(), _pool_policy(), review)
-    _include_first_six(review)
+    _include_first_eight(review)
     with pytest.raises(ValueError, match="DUPLICATE_FAMILY"):
         freeze_active_pool(review, library, "b" * 64, _pool_policy(), tmp_path / "pool.json")
 
@@ -191,7 +191,7 @@ def test_duplicate_family_remains_a_hard_blocker(tmp_path):
 def test_unresolved_score_conflict_remains_a_hard_blocker(tmp_path):
     review = tmp_path / "review.xlsx"
     build_active_pool_review(_catalog(), _coverage(), _scores(conflict=True), _pool_policy(), review)
-    _include_first_six(review)
+    _include_first_eight(review)
     with pytest.raises(ValueError, match="UNRESOLVED_FACTOR_CONFLICT"):
         freeze_active_pool(review, _library(), "b" * 64, _pool_policy(), tmp_path / "pool.json")
 
@@ -199,7 +199,7 @@ def test_unresolved_score_conflict_remains_a_hard_blocker(tmp_path):
 def test_changed_direction_is_rejected(tmp_path):
     review = tmp_path / "review.xlsx"
     build_active_pool_review(_catalog(), _coverage(), None, _pool_policy(), review)
-    _include_first_six(review)
+    _include_first_eight(review)
     workbook = load_workbook(review)
     sheet = workbook["Decision Template"]
     headers = {cell.value: cell.column for cell in sheet[1]}
@@ -228,7 +228,7 @@ def test_cli_builds_review_then_freezes_human_decisions(tmp_path, capsys):
         "--output", str(review_path),
     ]) == 0
     assert json.loads(capsys.readouterr().out)["status"] == "PASS"
-    _include_first_six(review_path)
+    _include_first_eight(review_path)
     assert main([
         "freeze-active-pool",
         "--review", str(review_path),

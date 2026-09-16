@@ -22,8 +22,8 @@ def _policy() -> dict:
         "max_weekly_top10_turnover": 0.80,
         "score_corr_conflict": 0.80,
         "top10_overlap_conflict": 0.70,
-        "active_pool_min": 5,
-        "active_pool_max": 12,
+        "active_pool_min": 8,
+        "active_pool_max": 15,
     }
 
 
@@ -101,17 +101,17 @@ def test_gates_are_applied_in_frozen_sequence(overrides, expected):
 
 def test_filter_does_not_pad_to_minimum():
     decisions, messages = greedy_nonredundant_selection(
-        _passing_candidates(4), _no_conflicts(), _policy()
+        _passing_candidates(7), _no_conflicts(), _policy()
     )
-    assert decisions.filter_status.eq("SELECTED").sum() == 4
+    assert decisions.filter_status.eq("SELECTED").sum() == 7
     assert messages == ["COMPOSITE_BLOCKED_INSUFFICIENT_ALPHA"]
 
 
 def test_same_mechanism_is_warning_not_conflict():
     decisions, messages = greedy_nonredundant_selection(
-        _passing_candidates(5, same_mechanism=True), _no_conflicts(), _policy()
+        _passing_candidates(8, same_mechanism=True), _no_conflicts(), _policy()
     )
-    assert decisions.filter_status.eq("SELECTED").sum() == 5
+    assert decisions.filter_status.eq("SELECTED").sum() == 8
     assert "SAME_MECHANISM_INCLUDED" in messages
 
 
@@ -130,7 +130,7 @@ def test_conflicts_reject_lower_priority_factor_deterministically():
         ]
     )
     decisions, _ = greedy_nonredundant_selection(
-        _passing_candidates(5), conflicts, _policy()
+        _passing_candidates(8), conflicts, _policy()
     )
     row = decisions.set_index("factor_id").loc["F2"]
     assert row.filter_status == "REJECT_REDUNDANT"
@@ -157,7 +157,7 @@ def test_pairwise_conflicts_measure_family_score_and_top10_overlap():
 
 def test_identical_inputs_produce_identical_proposed_pool_hash():
     selected, _ = greedy_nonredundant_selection(
-        _passing_candidates(5), _no_conflicts(), _policy()
+        _passing_candidates(8), _no_conflicts(), _policy()
     )
     metadata = {
         "filter_run_id": "run-1",
@@ -175,3 +175,26 @@ def test_identical_inputs_produce_identical_proposed_pool_hash():
     assert first == second
     assert first["live_orders_submitted"] == 0
 
+
+def test_proposed_pool_blocks_selected_count_above_approved_maximum():
+    selected = _passing_candidates(16).copy()
+    selected["filter_status"] = "SELECTED"
+    selected["filter_reason"] = "SELECTED_NONREDUNDANT"
+    proposal = build_proposed_pool(
+        selected,
+        {
+            "filter_run_id": "run-over-max",
+            "selection_config_hash": "a" * 64,
+            "v4_manifest_hash": "b" * 64,
+            "expansion_registry_snapshot_hash": "c" * 64,
+            "alpha_catalog_hash": "d" * 64,
+            "provider": "yfinance_eod",
+            "universe_hash": "e" * 64,
+            "sample_start": "2019-01-04",
+            "sample_end": "2026-09-11",
+        },
+        _policy(),
+    )
+    assert proposal["factor_count"] == 16
+    assert proposal["status"] == "BLOCKED"
+    assert proposal["blockers"] == ["COMPOSITE_BLOCKED_ACTIVE_POOL_EXCEEDS_MAX"]

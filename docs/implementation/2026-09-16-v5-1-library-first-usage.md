@@ -91,7 +91,7 @@ PYTHONPATH=src .venv/bin/python -m us_equity_alpha.cli freeze-filtered-pool \
   --output private/active_pools/v5-1-pool-001
 ```
 
-冻结只接受 proposal 内的因子，批准后必须保留 5–12 个。权重固定为等权，文件
+冻结只接受 proposal 内的因子，批准后必须保留 8–15 个。权重固定为等权，文件
 不可覆盖，并记录 V4 manifest、Expansion Registry、Catalog、universe 和 policy
 哈希。
 

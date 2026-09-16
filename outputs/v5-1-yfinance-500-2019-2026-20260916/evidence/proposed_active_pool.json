@@ -1,0 +1,84 @@
+{
+  "alpha_catalog_hash": "cd56edeed9d50bece86dc3bf8285a4bedad69047b6b525680b5ed8a4ba2d8a10",
+  "artifact_type": "V5_1_PROPOSED_ACTIVE_POOL",
+  "blockers": [],
+  "content_hash": "65cb8f809af5bb994529dc6571203e5b049c2601b8f82070eafa54c159794993",
+  "expansion_registry_snapshot_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "factor_count": 14,
+  "filter_run_id": "v5-1-filter-3bc4030308782cd7bbe8",
+  "historical_pit_verified": false,
+  "independent_oos_claim_allowed": false,
+  "live_orders_submitted": 0,
+  "messages": [
+    "SAME_MECHANISM_INCLUDED"
+  ],
+  "provider": "yfinance_eod",
+  "sample_end": "2026-09-11",
+  "sample_start": "2019-01-04",
+  "schema_version": 1,
+  "selected_factors": [
+    {
+      "factor_id": "local_reconstruction__baaf2b3c8bbb8a0c",
+      "factor_version": 4
+    },
+    {
+      "factor_id": "local_reconstruction__065cad4f5c074df9",
+      "factor_version": 4
+    },
+    {
+      "factor_id": "local_reconstruction__59a3b5921ccdee46",
+      "factor_version": 4
+    },
+    {
+      "factor_id": "local_reconstruction__24f541dd8bfc51f3",
+      "factor_version": 4
+    },
+    {
+      "factor_id": "local_reconstruction__4a73ed249b2fb3ae",
+      "factor_version": 4
+    },
+    {
+      "factor_id": "local_reconstruction__7c781ae4018431cf",
+      "factor_version": 4
+    },
+    {
+      "factor_id": "local_reconstruction__4b10c85b8fc0e113",
+      "factor_version": 4
+    },
+    {
+      "factor_id": "local_reconstruction__263008edd39d3975",
+      "factor_version": 4
+    },
+    {
+      "factor_id": "local_reconstruction__d4ddaff5d7487498",
+      "factor_version": 4
+    },
+    {
+      "factor_id": "local_reconstruction__7aefcc7a75724728",
+      "factor_version": 4
+    },
+    {
+      "factor_id": "local_reconstruction__346641b13211274d",
+      "factor_version": 4
+    },
+    {
+      "factor_id": "local_reconstruction__8b8ff896fe4d8f74",
+      "factor_version": 4
+    },
+    {
+      "factor_id": "local_reconstruction__a8e3fd3d7d286dd1",
+      "factor_version": 4
+    },
+    {
+      "factor_id": "local_reconstruction__561a18eec61a35a3",
+      "factor_version": 4
+    }
+  ],
+  "selection_config_hash": "f65e5ee4256167e95d6af9fb13d83ad081a428757980c79d8270c6540f0845da",
+  "selection_evidence": "DEVELOPMENT_EXPOSED",
+  "status": "READY_FOR_HUMAN_REVIEW",
+  "survivorship_bias": true,
+  "universe_hash": "8cd9dea3f95515b932b20ed72272c56d1a9b5dc9045184396b3fb18c18e3dd9f",
+  "v4_manifest_hash": "db7b7a7cea2950429f4aa7729ae5a3cf2f6e326c0c94edaeba02d83dd52b0f2a",
+  "weighting": "FLAT_EQUAL_WEIGHT"
+}

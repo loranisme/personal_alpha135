@@ -34,7 +34,7 @@ Unified Alpha Catalog
 On-demand V5.1 Lite Alpha Filter
         |
         v
-Proposed Active Pool -> Human Review -> Frozen Active Pool (5-12 factors)
+Proposed Active Pool -> Human Review -> Frozen Active Pool (8-15 factors)
         |
         v
 Daily Active-Pool Calculation -> Equal-Weight Composite -> Stock Ranking
@@ -53,7 +53,7 @@ Top 10% Target Portfolio -> Optional Manual Rebalance Draft -> Forward Paper Log
 4. Run a compact, deterministic Alpha Filter only when requested or when the
    library/policy changes.
 5. Produce a proposed Active Pool, require human review, then freeze a hashed
-   Active Pool containing 5-12 factors.
+   Active Pool containing 8-15 factors.
 6. Keep flat equal-weight rank aggregation as the only production composite.
 7. Reuse the existing daily ranking, Top-10% portfolio, optional manual
    rebalance helper and append-only forward paper log.
@@ -289,8 +289,8 @@ alpha_filter:
   max_weekly_top10_turnover: 0.80
   score_corr_conflict: 0.80
   top10_overlap_conflict: 0.70
-  active_pool_min: 5
-  active_pool_max: 12
+  active_pool_min: 8
+  active_pool_max: 15
 ```
 
 The gates run in this order:
@@ -346,8 +346,8 @@ or add weak factors to meet a target count.
 The Filter writes a `proposed_active_pool.json`. It does not overwrite or
 activate a pool automatically.
 
-The production composite is eligible only when 5-12 non-redundant factors are
-approved. If fewer than five pass, individual diagnostics still complete and
+The production composite is eligible only when 8-15 non-redundant factors are
+approved. If fewer than eight pass, individual diagnostics still complete and
 the proposal returns:
 
 ```text
@@ -487,7 +487,7 @@ input hashes, no direction reversal and `live_orders_submitted=0`.
   `NOT_ELIGIBLE_UNCLASSIFIED_MECHANISM` for the default pool.
 - A catalog/library/hash mismatch stops the run before diagnostics.
 - Existing non-empty run directories are never overwritten.
-- Fewer than five passing factors block only composite creation, not library
+- Fewer than eight passing factors block only composite creation, not library
   registration or individual diagnostic delivery.
 - A failed optional Alphalens/vectorbt adapter cannot corrupt the Catalog,
   Filter decisions or frozen Active Pool.
@@ -513,7 +513,7 @@ input hashes, no direction reversal and `live_orders_submitted=0`.
 14. Same-mechanism factors may coexist when numerically non-redundant.
 15. Identical inputs and configuration produce identical decisions and hashes.
 16. The Filter never weakens gates to reach a target factor count.
-17. A production proposal contains 5-12 factors or explicitly blocks composite
+17. A production proposal contains 8-15 factors or explicitly blocks composite
     creation.
 18. Production composite weights are flat equal weights and sum to one.
 19. Daily selection evaluates only the frozen Active Pool.
@@ -536,7 +536,7 @@ P0.4  Compute minimal diagnostics for all eligible candidates
 P0.5  Apply Data, Signal, Stability and Usability gates
 P0.6  Compute conflicts and perform deterministic greedy deduplication
 P0.7  Write proposed pool and human-review workbook
-P0.8  Freeze a reviewed 5-12 factor Active Pool
+P0.8  Freeze a reviewed 8-15 factor Active Pool
 P0.9  Build flat equal-weight composite and compare with the V5 baseline
 P0.10 Reuse daily selection and forward paper log; add hashes and tests
 ```
