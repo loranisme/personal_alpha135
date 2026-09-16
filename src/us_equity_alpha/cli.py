@@ -127,6 +127,12 @@ def _parser() -> argparse.ArgumentParser:
     catalog.add_argument("--policy", required=True, type=Path)
     catalog.add_argument("--diagnostics", type=Path)
     catalog.add_argument("--output", required=True, type=Path)
+    expansion = subparsers.add_parser(
+        "register-expansion",
+        help="Append one immutable post-V4 factor definition to the expansion registry.",
+    )
+    expansion.add_argument("--definition", required=True, type=Path)
+    expansion.add_argument("--registry", required=True, type=Path)
     pool_review = subparsers.add_parser(
         "build-active-pool-review",
         help="Create the protected workbook for human Active Pool decisions.",
@@ -406,6 +412,26 @@ def main(argv: Sequence[str] | None = None) -> int:
             "files": {key: str(path) for key, path in paths.items()},
             "live_orders_submitted": 0,
         })
+        return 0
+    if args.command == "register-expansion":
+        from .expansion_registry import register_expansion
+
+        try:
+            definition = json.loads(args.definition.read_text(encoding="utf-8"))
+            result = register_expansion(definition, args.registry)
+        except (FileExistsError, OSError, ValueError, json.JSONDecodeError, TypeError) as exc:
+            _emit({"status": "BLOCKED_CONFIG", "errors": [str(exc)], "live_orders_submitted": 0})
+            return 2
+        _emit(
+            {
+                "status": "PASS",
+                "factor_id": result["factor_id"],
+                "factor_version": result["factor_version"],
+                "content_hash": result["content_hash"],
+                "path": result["path"],
+                "live_orders_submitted": 0,
+            }
+        )
         return 0
     if args.command == "build-active-pool-review":
         from .active_pool import build_active_pool_review
