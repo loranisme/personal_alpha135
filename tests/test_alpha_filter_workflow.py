@@ -147,6 +147,11 @@ def test_filter_run_accounts_for_every_catalog_row(tmp_path):
     assert diagnostics[["factor_id", "factor_version"]].duplicated().sum() == 0
     assert result["live_orders_submitted"] == 0
     assert Path(result["manifest"]).is_file()
+    comparison = pd.read_csv(result["composite_comparison"])
+    assert comparison.composite_id.tolist() == [
+        "V5_1_PROPOSED", "BASELINE_V5_8_FACTOR"
+    ]
+    assert set(comparison.comparison_status) == {"NOT_RUN"}
 
 
 def test_filter_run_refuses_nonempty_output_directory(tmp_path):

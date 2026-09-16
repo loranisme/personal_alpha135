@@ -131,7 +131,11 @@ def diagnose_factor(
             for number, values in pair.groupby(buckets, sort=True)["return"]:
                 quantile_returns[int(number)].extend(float(value) for value in values)
 
-    ic = pd.Series(ic_values, dtype=float).sort_index()
+    ic = (
+        pd.Series(ic_values, dtype=float).sort_index()
+        if ic_values
+        else pd.Series(index=pd.DatetimeIndex([]), dtype=float)
+    )
     mean_ic = float(ic.mean()) if not ic.empty else np.nan
     sigma = float(ic.std(ddof=1)) if len(ic) > 1 else np.nan
     icir = mean_ic / sigma if np.isfinite(sigma) and sigma > 0 else np.nan
@@ -179,4 +183,3 @@ def diagnose_factor(
         "weekly_top10_turnover": weekly_top10_turnover(percentile),
     }
     return metrics, yearly
-

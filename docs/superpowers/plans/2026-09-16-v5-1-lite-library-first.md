@@ -518,7 +518,7 @@ git commit -m "Compare flat alpha composite with frozen baseline"
 - Consumes one completed immutable filter-run directory.
 - Produces `alpha_filter_review.xlsx` with exactly five sheets: `Summary`, `Alpha Diagnostics`, `Selected Pool`, `Composite Comparison`, `Audit`.
 
-- [ ] **Step 1: Write failing report-contract test**
+- [x] **Step 1: Write failing report-contract test**
 
 ```python
 def test_report_contains_only_required_review_sheets(tmp_path):
@@ -542,13 +542,13 @@ def test_report_contains_only_required_review_sheets(tmp_path):
         assert required in text
 ```
 
-- [ ] **Step 2: Verify the report test fails**
+- [x] **Step 2: Verify the report test fails**
 
 Run: `PYTHONPATH=src .venv/bin/pytest -q tests/test_v5_1_alpha_filter_report.py`
 
 Expected: workbook builder fixture cannot find the new script/output.
 
-- [ ] **Step 3: Build the compact review workbook**
+- [x] **Step 3: Build the compact review workbook**
 
 Use `@oai/artifact-tool` with the repository's existing spreadsheet build
 pattern. The workbook shows counts through each gate, all factor statuses,
@@ -556,14 +556,14 @@ selected factors, old/new composite metrics and the full evidence boundary.
 Render every sheet in the test fixture and scan the exported workbook for
 formula errors.
 
-- [ ] **Step 4: Add a focused library-first usage guide**
+- [x] **Step 4: Add a focused library-first usage guide**
 
 Document registration, unified-catalog build, on-demand filter, human review,
 pool freeze and unchanged daily-selection commands. State that filter runs are
 not daily, historical results remain development-exposed and private data stay
 ignored. Preserve the existing README unchanged, as previously requested.
 
-- [ ] **Step 5: Run complete regression and safety checks**
+- [x] **Step 5: Run complete regression and safety checks**
 
 Run:
 
@@ -576,14 +576,14 @@ git grep -En '(TIINGO(_API)?_TOKEN|APCA_API_KEY_ID|APCA_API_SECRET_KEY|WQ_BRAIN_
 Expected: all tests pass, `git diff --check` is silent, and the credential
 assignment scan has zero matches.
 
-- [ ] **Step 6: Run one saved-data acceptance sample**
+- [x] **Step 6: Run one saved-data acceptance sample**
 
 Use the existing saved 500-security development dataset. Confirm every V4
 factor is accounted for, the run returns either a 5-12 factor proposal or the
 specified composite blocker, the old eight-factor baseline remains present,
 all manifests reopen with matching hashes and `live_orders_submitted=0`.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add scripts/build_v5_1_alpha_filter_workbook.mjs tests/test_v5_1_alpha_filter_report.py docs/implementation/2026-09-16-v5-1-library-first-usage.md

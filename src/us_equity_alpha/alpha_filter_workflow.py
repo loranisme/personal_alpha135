@@ -387,6 +387,7 @@ def run_alpha_filter_from_files(
         "conflicts": output_path / "redundancy_conflicts.csv",
         "decisions": output_path / "filter_decisions.csv",
         "proposal": output_path / "proposed_active_pool.json",
+        "composite_comparison": output_path / "composite_comparison.csv",
         "blocked_items": output_path / "blocked_items.csv",
         "config": output_path / "filter_config.json",
         "run_status": output_path / "run_status.json",
@@ -397,6 +398,18 @@ def run_alpha_filter_from_files(
     conflicts.to_csv(paths["conflicts"], index=False)
     decisions.to_csv(paths["decisions"], index=False)
     paths["proposal"].write_text(json.dumps(proposal, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    pd.DataFrame(
+        [
+            {
+                "composite_id": composite_id,
+                "comparison_status": "NOT_RUN",
+                "missing_reason": "EXPLICIT_FROZEN_BASELINE_COMPARISON_REQUIRED",
+                "portfolio_metrics_used_for_filter_admission": False,
+                "selection_evidence": "DEVELOPMENT_EXPOSED",
+            }
+            for composite_id in ("V5_1_PROPOSED", "BASELINE_V5_8_FACTOR")
+        ]
+    ).to_csv(paths["composite_comparison"], index=False)
     blocked = decisions[~decisions.filter_status.eq("SELECTED")][
         ["factor_id", "factor_version", "filter_status", "filter_reason"]
     ]

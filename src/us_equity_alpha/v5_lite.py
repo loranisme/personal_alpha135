@@ -72,12 +72,32 @@ def run_v5_lite(data,output_dir,paper_log_path):
     PaperLog(paper_log_path).record_signal(event)
     return {"status":"SELECTION_READY","execution_helper_status":helper["execution_helper_status"],"live_orders_submitted":0,"output":str(output),"manifest":str(paths["manifest"])}
 
-def run_v5_lite_from_files(*,library,active_pool,universe,market_data,policy,session,output,paper_log,execution_helper=False,positions=None,account=None,reference_prices=None):
+def _runtime_library(base_library, active_pool, expansion_registry=None):
+    selected={(str(row.get("factor_id") or row.get("local_factor_id")),row.get("factor_version")) for row in active_pool.get("selected_factors",[])}
+    by_id={str(row.get("local_factor_id")):dict(row) for row in base_library.get("factors",[])}
+    missing={factor_id for factor_id,_ in selected if factor_id not in by_id}
+    needs_expansion=active_pool.get("library_version")=="V4_PLUS_EXPANSION_REGISTRY" or bool(missing)
+    if needs_expansion:
+        if expansion_registry is None: raise ValueError("EXPANSION_REGISTRY_REQUIRED")
+        from .expansion_registry import load_expansion_snapshot
+        versions={(str(row["factor_id"]),int(row["factor_version"])):row for row in load_expansion_snapshot(expansion_registry)}
+        for factor_id,version in selected:
+            key=(factor_id,int(version)) if version is not None else None
+            if key not in versions: continue
+            row=versions[key]
+            if row["compute_status"]!="COMPUTE_VERIFIED": raise ValueError(f"EXPANSION_NOT_COMPUTE_VERIFIED:{factor_id}:v{version}")
+            by_id[factor_id]={"local_factor_id":factor_id,"expression":row["expression"],"field_bindings":{field:field for field in row["required_fields"]},"allowed_providers":row["allowed_providers"],"build_status":"COMPUTE_VERIFIED","usage_tier":"DIAGNOSTIC_ONLY","provenance_kind":"LOCAL_RECONSTRUCTION","settings":row["settings"]}
+    unresolved={factor_id for factor_id,_ in selected if factor_id not in by_id}
+    if unresolved: raise ValueError("FROZEN_FACTOR_ID_MISSING:"+",".join(sorted(unresolved)))
+    return {**base_library,"factors":[by_id[key] for key in sorted(by_id)]}
+
+def run_v5_lite_from_files(*,library,active_pool,universe,market_data,policy,session,output,paper_log,expansion_registry=None,execution_helper=False,positions=None,account=None,reference_prices=None):
     root=Path(market_data);inputs={}
     for path in sorted(root.glob("*.parquet")):
         panel=pd.read_parquet(path);panel.index=pd.to_datetime(panel.index,utc=True);inputs[path.stem]=panel
     if not inputs: raise ValueError("MARKET_DATA_PANELS_REQUIRED")
-    payload={"library":json.loads(Path(library).read_text()),"active_pool":json.loads(Path(active_pool).read_text()),"provider":json.loads(Path(active_pool).read_text())["provider"],"inputs":inputs,"universe":pd.read_csv(universe),"session":pd.Timestamp(session),"selection_policy":json.loads(Path(policy).read_text())}
+    base_library=json.loads(Path(library).read_text());pool=json.loads(Path(active_pool).read_text())
+    payload={"library":_runtime_library(base_library,pool,expansion_registry),"active_pool":pool,"provider":pool["provider"],"inputs":inputs,"universe":pd.read_csv(universe),"session":pd.Timestamp(session),"selection_policy":json.loads(Path(policy).read_text())}
     if execution_helper:
         if not all((positions,account,reference_prices)): raise ValueError("EXECUTION_HELPER_INPUTS_REQUIRED")
         account_data=json.loads(Path(account).read_text());payload.update(execution_helper=True,positions=pd.read_csv(positions),prices=pd.read_csv(reference_prices),nav=float(account_data["nav"]),now=account_data["as_of"])

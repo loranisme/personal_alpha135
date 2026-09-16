@@ -94,3 +94,16 @@ def test_weekly_top10_turnover_uses_prior_top_set_as_denominator():
     )
     assert weekly_top10_turnover(ranks) == 1.0
 
+
+def test_zero_valid_ic_sessions_returns_missing_metrics_instead_of_crashing():
+    dates = pd.date_range("2025-01-03", periods=30, freq="7D")
+    ranks = pd.DataFrame(1.0, index=dates, columns=["A", "B"])
+    returns = pd.DataFrame(0.0, index=dates, columns=["A", "B"])
+    metrics, yearly = diagnose_factor(ranks, returns, _config())
+    assert metrics["valid_signal_sessions"] == 0
+    assert metrics["mean_rank_ic_5d"] is None
+    assert metrics["positive_year_ratio"] is None
+    assert yearly.empty
+    assert list(yearly.columns) == [
+        "year", "valid_signal_sessions", "mean_rank_ic_5d", "year_status"
+    ]
