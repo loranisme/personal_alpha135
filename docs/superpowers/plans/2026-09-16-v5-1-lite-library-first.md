@@ -455,7 +455,7 @@ git commit -m "Run and freeze V5.1 lightweight alpha filter"
 - Produces: `compare_composites(new_scores, baseline_scores, labels, portfolio_runner, metadata) -> pd.DataFrame`
 - Consumes frozen `BASELINE_V5_8_FACTOR` IDs and the identical provider/universe/date/label contract.
 
-- [ ] **Step 1: Write failing composite tests**
+- [x] **Step 1: Write failing composite tests**
 
 ```python
 def test_flat_composite_uses_equal_weights_and_complete_rows_only():
@@ -478,26 +478,26 @@ def test_portfolio_return_never_changes_factor_decisions():
     pd.testing.assert_frame_equal(before, _filter_decisions())
 ```
 
-- [ ] **Step 2: Verify the tests fail**
+- [x] **Step 2: Verify the tests fail**
 
 Run: `PYTHONPATH=src .venv/bin/pytest -q tests/test_alpha_filter_composite.py`
 
 Expected: new composite functions are unavailable.
 
-- [ ] **Step 3: Implement flat composite and diagnostic comparison**
+- [x] **Step 3: Implement flat composite and diagnostic comparison**
 
 Average complete cross-sectional percentile ranks without fitted weights. Use
 the existing Alphalens/vectorbt adapters only after filter decisions have been
 frozen in memory. Emit Mean Rank IC, ICIR, positive-year ratio, Q5-Q1, weekly
 turnover, total return, Sharpe, MDD and modeled fees for old and new composites.
 
-- [ ] **Step 4: Run focused tests**
+- [x] **Step 4: Run focused tests**
 
 Run: `PYTHONPATH=src .venv/bin/pytest -q tests/test_alpha_filter_composite.py tests/test_backtest.py tests/test_v4_workflow_sample.py`
 
 Expected: all tests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/us_equity_alpha/alpha_filter_workflow.py tests/test_alpha_filter_composite.py

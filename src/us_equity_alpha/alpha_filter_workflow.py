@@ -43,6 +43,76 @@ def _canonical_hash(value: Any) -> str:
     ).hexdigest()
 
 
+def flat_equal_weight_composite(
+    rank_panels: dict[Any, pd.DataFrame],
+) -> pd.DataFrame:
+    """Average complete aligned rank rows with one equal weight per factor."""
+    if not rank_panels:
+        raise ValueError("COMPOSITE_FACTOR_PANELS_REQUIRED")
+    panels = list(rank_panels.values())
+    if any("SPY" in panel.columns for panel in panels):
+        raise ValueError("BENCHMARK_IN_FACTOR_CROSS_SECTION")
+    common_index = panels[0].index
+    common_columns = panels[0].columns
+    for panel in panels[1:]:
+        common_index = common_index.intersection(panel.index)
+        common_columns = common_columns.intersection(panel.columns)
+    if common_index.empty or common_columns.empty:
+        raise ValueError("COMPOSITE_PANEL_INTERSECTION_EMPTY")
+    aligned = [panel.loc[common_index, common_columns] for panel in panels]
+    total = aligned[0].copy()
+    complete = aligned[0].notna()
+    for panel in aligned[1:]:
+        total = total.add(panel, fill_value=0)
+        complete &= panel.notna()
+    return (total / len(aligned)).where(complete)
+
+
+def compare_composites(
+    new_scores: pd.DataFrame,
+    baseline_scores: pd.DataFrame,
+    labels: pd.DataFrame,
+    portfolio_runner,
+    metadata: dict[str, Any],
+) -> pd.DataFrame:
+    """Compare frozen composites without feeding portfolio returns into selection."""
+    if metadata.get("filter_decisions_frozen") is not True:
+        raise ValueError("FILTER_DECISIONS_NOT_FROZEN")
+    for field in ("provider", "universe_hash", "signal_sessions_hash", "forward_label"):
+        if metadata.get(f"new_{field}") != metadata.get(f"baseline_{field}"):
+            raise ValueError(f"BASELINE_CONTRACT_MISMATCH:{field}")
+    config = metadata.get("diagnostic_config")
+    if not isinstance(config, dict):
+        raise ValueError("DIAGNOSTIC_CONFIG_REQUIRED")
+    rows: list[dict[str, Any]] = []
+    for composite_id, scores in (
+        ("V5_1_PROPOSED", new_scores),
+        ("BASELINE_V5_8_FACTOR", baseline_scores),
+    ):
+        diagnostics, _ = diagnose_factor(scores.copy(), labels.copy(), config)
+        portfolio = portfolio_runner(scores.copy())
+        required_portfolio = {"total_return", "sharpe", "max_drawdown", "modeled_fees"}
+        if not isinstance(portfolio, dict) or required_portfolio - set(portfolio):
+            raise ValueError("PORTFOLIO_COMPARISON_SCHEMA_INVALID")
+        rows.append(
+            {
+                "composite_id": composite_id,
+                "mean_rank_ic_5d": diagnostics["mean_rank_ic_5d"],
+                "icir_5d": diagnostics["icir_5d"],
+                "positive_year_ratio": diagnostics["positive_year_ratio"],
+                "q5_minus_q1_5d": diagnostics["q5_minus_q1_5d"],
+                "weekly_top10_turnover": diagnostics["weekly_top10_turnover"],
+                "total_return": portfolio["total_return"],
+                "sharpe": portfolio["sharpe"],
+                "max_drawdown": portfolio["max_drawdown"],
+                "modeled_fees": portfolio["modeled_fees"],
+                "portfolio_metrics_used_for_filter_admission": False,
+                "selection_evidence": "DEVELOPMENT_EXPOSED",
+            }
+        )
+    return pd.DataFrame(rows)
+
+
 def _read_object(path: Path) -> dict[str, Any]:
     value = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(value, dict):
@@ -463,4 +533,3 @@ def freeze_filtered_pool(
         json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
     return pool
-
