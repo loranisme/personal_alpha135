@@ -133,6 +133,15 @@ def _parser() -> argparse.ArgumentParser:
     )
     expansion.add_argument("--definition", required=True, type=Path)
     expansion.add_argument("--registry", required=True, type=Path)
+    unified_catalog = subparsers.add_parser(
+        "build-unified-catalog",
+        help="Combine immutable V4 formulas and append-only expansion versions.",
+    )
+    unified_catalog.add_argument("--library", required=True, type=Path)
+    unified_catalog.add_argument("--base-catalog", required=True, type=Path)
+    unified_catalog.add_argument("--expansion-registry", required=True, type=Path)
+    unified_catalog.add_argument("--provider", required=True)
+    unified_catalog.add_argument("--output", required=True, type=Path)
     pool_review = subparsers.add_parser(
         "build-active-pool-review",
         help="Create the protected workbook for human Active Pool decisions.",
@@ -429,6 +438,32 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "factor_version": result["factor_version"],
                 "content_hash": result["content_hash"],
                 "path": result["path"],
+                "live_orders_submitted": 0,
+            }
+        )
+        return 0
+    if args.command == "build-unified-catalog":
+        from .alpha_catalog import write_unified_catalog
+
+        try:
+            paths = write_unified_catalog(
+                args.library,
+                args.base_catalog,
+                args.expansion_registry,
+                args.provider,
+                args.output,
+            )
+            summary = json.loads(paths["summary"].read_text(encoding="utf-8"))
+        except (FileExistsError, OSError, ValueError, KeyError, TypeError) as exc:
+            _emit({"status": "BLOCKED_CONFIG", "errors": [str(exc)], "live_orders_submitted": 0})
+            return 2
+        _emit(
+            {
+                "status": "PASS",
+                "factor_version_count": summary["factor_version_count"],
+                "filter_eligible_count": summary["filter_eligible_count"],
+                "output": str(args.output),
+                "files": {key: str(path) for key, path in paths.items()},
                 "live_orders_submitted": 0,
             }
         )

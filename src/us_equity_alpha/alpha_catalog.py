@@ -56,6 +56,26 @@ DIAGNOSTIC_COLUMNS = ("local_factor_id",) + DIAGNOSTIC_VALUE_COLUMNS + DIAGNOSTI
 _HEX64 = re.compile(r"[0-9a-f]{64}", re.IGNORECASE)
 SUPPORTED_DEFAULT_PROVIDERS = {"alpaca_sip", "tiingo_eod"}
 
+UNIFIED_CATALOG_COLUMNS = (
+    "factor_id",
+    "factor_version",
+    "source_kind",
+    "family_id",
+    "mechanism_tag",
+    "mechanism_status",
+    "semantic_status",
+    "required_fields",
+    "allowed_providers",
+    "default_provider_eligible",
+    "direction",
+    "build_status",
+    "warmup_sessions",
+    "lineage_hash",
+    "content_hash",
+    "filter_eligible",
+    "catalog_exclusion_reasons",
+)
+
 
 def _validate_policy(policy: Mapping[str, Any], library_version: str) -> None:
     if policy.get("library_version") != library_version:
@@ -188,6 +208,196 @@ def build_catalog_review_view(
 
 def _digest(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _canonical_hash(value: Any) -> str:
+    return hashlib.sha256(
+        json.dumps(
+            value,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+            allow_nan=False,
+        ).encode("utf-8")
+    ).hexdigest()
+
+
+def _split_csv_strings(value: Any) -> list[str]:
+    if value is None or pd.isna(value):
+        return []
+    if isinstance(value, str):
+        return sorted({item for item in value.split(",") if item})
+    return sorted({str(item) for item in value})
+
+
+def build_unified_catalog(
+    v4_library: Mapping[str, Any],
+    v5_catalog: pd.DataFrame,
+    expansions: list[dict[str, Any]],
+    provider: str,
+) -> pd.DataFrame:
+    """Combine immutable V4 formulas and all append-only expansion versions."""
+    factors = v4_library.get("factors")
+    if not isinstance(factors, list):
+        raise ValueError("INVALID_FACTOR_LIBRARY")
+    if "local_factor_id" not in v5_catalog:
+        raise ValueError("V4_CATALOG_ID_MISMATCH")
+    library_ids = [factor.get("local_factor_id") for factor in factors]
+    catalog_ids = v5_catalog.local_factor_id.tolist()
+    if (
+        any(not isinstance(factor_id, str) or not factor_id for factor_id in library_ids)
+        or len(library_ids) != len(set(library_ids))
+        or len(catalog_ids) != len(set(catalog_ids))
+        or set(library_ids) != set(catalog_ids)
+    ):
+        raise ValueError("V4_CATALOG_ID_MISMATCH")
+    catalog_rows = v5_catalog.set_index("local_factor_id", verify_integrity=True)
+    rows: list[dict[str, Any]] = []
+    for factor in factors:
+        factor_id = factor["local_factor_id"]
+        catalog = catalog_rows.loc[factor_id]
+        providers = sorted(str(item) for item in factor.get("allowed_providers", []))
+        fields = sorted(str(item) for item in (factor.get("field_bindings") or {}))
+        mechanism = str(catalog["mechanism_tag"])
+        build_status = str(factor.get("build_status"))
+        reasons: list[str] = []
+        if provider not in providers:
+            reasons.append("DEFAULT_PROVIDER_UNAVAILABLE")
+        if mechanism == "unclassified" or str(catalog["mechanism_status"]) != "CLASSIFIED":
+            reasons.append("MECHANISM_UNCLASSIFIED")
+        if build_status != "COMPUTE_VERIFIED":
+            reasons.append("NOT_COMPUTE_VERIFIED")
+        rows.append(
+            {
+                "factor_id": factor_id,
+                "factor_version": 4,
+                "source_kind": "V4_BASE",
+                "family_id": factor.get("family_id"),
+                "mechanism_tag": mechanism,
+                "mechanism_status": str(catalog["mechanism_status"]),
+                "semantic_status": factor.get("semantic_status"),
+                "required_fields": ",".join(fields),
+                "allowed_providers": ",".join(providers),
+                "default_provider_eligible": provider in providers,
+                "direction": factor.get("direction", 1),
+                "build_status": build_status,
+                "warmup_sessions": int(catalog["warmup_sessions"]),
+                "lineage_hash": _canonical_hash(sorted(factor.get("source_alpha_ids") or [])),
+                "content_hash": _canonical_hash(factor),
+                "filter_eligible": not reasons,
+                "catalog_exclusion_reasons": ",".join(reasons),
+            }
+        )
+    for expansion in expansions:
+        providers = sorted(str(item) for item in expansion.get("allowed_providers", []))
+        fields = sorted(str(item) for item in expansion.get("required_fields", []))
+        mechanism = str(expansion.get("mechanism_tag", "unclassified"))
+        build_status = str(expansion.get("compute_status"))
+        reasons = []
+        if provider not in providers:
+            reasons.append("DEFAULT_PROVIDER_UNAVAILABLE")
+        if mechanism == "unclassified":
+            reasons.append("MECHANISM_UNCLASSIFIED")
+        if build_status != "COMPUTE_VERIFIED":
+            reasons.append("NOT_COMPUTE_VERIFIED")
+        factor_id = str(expansion["factor_id"])
+        rows.append(
+            {
+                "factor_id": factor_id,
+                "factor_version": int(expansion["factor_version"]),
+                "source_kind": "EXPANSION",
+                "family_id": expansion.get("supersedes_factor_id") or factor_id,
+                "mechanism_tag": mechanism,
+                "mechanism_status": "CLASSIFIED" if mechanism != "unclassified" else "UNCLASSIFIED",
+                "semantic_status": "EXPANSION_REGISTERED",
+                "required_fields": ",".join(fields),
+                "allowed_providers": ",".join(providers),
+                "default_provider_eligible": provider in providers,
+                "direction": expansion.get("direction"),
+                "build_status": build_status,
+                "warmup_sessions": required_history_sessions(
+                    str(expansion.get("expression", "")), expansion.get("settings") or {}
+                ),
+                "lineage_hash": expansion.get("lineage_hash"),
+                "content_hash": expansion.get("content_hash"),
+                "filter_eligible": not reasons,
+                "catalog_exclusion_reasons": ",".join(reasons),
+            }
+        )
+    result = pd.DataFrame(rows, columns=UNIFIED_CATALOG_COLUMNS)
+    if result[["factor_id", "factor_version"]].duplicated().any():
+        raise ValueError("DUPLICATE_FACTOR_VERSION")
+    return result.sort_values(
+        ["factor_id", "factor_version", "source_kind"], kind="stable"
+    ).reset_index(drop=True)
+
+
+def write_unified_catalog(
+    library_path: Path | str,
+    base_catalog_path: Path | str,
+    expansion_registry: Path | str,
+    provider: str,
+    output_dir: Path | str,
+) -> dict[str, Path]:
+    """Write an immutable unified-catalog bundle into an empty directory."""
+    from .expansion_registry import load_expansion_snapshot
+
+    library_file = Path(library_path)
+    base_catalog_file = Path(base_catalog_path)
+    output = Path(output_dir)
+    if output.exists() and any(output.iterdir()):
+        raise FileExistsError("OUTPUT_DIRECTORY_NOT_EMPTY")
+    library = _read_object(library_file)
+    base_catalog = pd.read_parquet(base_catalog_file) if base_catalog_file.suffix == ".parquet" else pd.read_csv(base_catalog_file)
+    expansions = load_expansion_snapshot(expansion_registry)
+    unified = build_unified_catalog(library, base_catalog, expansions, provider)
+    output.mkdir(parents=True, exist_ok=True)
+    paths = {
+        "catalog_csv": output / "unified_alpha_catalog.csv",
+        "catalog_parquet": output / "unified_alpha_catalog.parquet",
+        "summary": output / "catalog_summary.json",
+        "manifest": output / "manifest.json",
+    }
+    unified.to_csv(paths["catalog_csv"], index=False)
+    unified.to_parquet(paths["catalog_parquet"], index=False)
+    paths["summary"].write_text(
+        json.dumps(
+            {
+                "status": "PASS",
+                "provider": provider,
+                "factor_version_count": int(len(unified)),
+                "v4_base_count": int(unified.source_kind.eq("V4_BASE").sum()),
+                "expansion_count": int(unified.source_kind.eq("EXPANSION").sum()),
+                "filter_eligible_count": int(unified.filter_eligible.sum()),
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    files = {path.name: _digest(path) for key, path in paths.items() if key != "manifest"}
+    manifest = {
+        "schema_version": 1,
+        "artifact_type": "V5_1_UNIFIED_ALPHA_CATALOG",
+        "provider": provider,
+        "input_sha256": {
+            "library": _digest(library_file),
+            "base_catalog": _digest(base_catalog_file),
+            "expansion_snapshot": _canonical_hash(expansions),
+        },
+        "files": files,
+        "historical_pit_verified": False,
+        "live_orders_submitted": 0,
+    }
+    paths["manifest"].write_text(
+        json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    if len(pd.read_csv(paths["catalog_csv"])) != len(unified):
+        raise ValueError("UNIFIED_CATALOG_CSV_REOPEN_MISMATCH")
+    if len(pd.read_parquet(paths["catalog_parquet"])) != len(unified):
+        raise ValueError("UNIFIED_CATALOG_PARQUET_REOPEN_MISMATCH")
+    return paths
 
 
 def _read_object(path: Path) -> dict[str, Any]:
