@@ -23,7 +23,7 @@ def validate_active_pool(pool:Mapping[str,Any],provider:str)->list[str]:
     if not declared or declared!=_hash(raw): raise ValueError("ACTIVE_POOL_HASH_MISMATCH")
     if pool.get("provider")!=provider: raise ValueError("ACTIVE_POOL_PROVIDER_MISMATCH")
     selected=pool.get("selected_factors") or []
-    if not 6<=len(selected)<=8: raise ValueError("ACTIVE_POOL_SIZE")
+    if not 5<=len(selected)<=12: raise ValueError("ACTIVE_POOL_SIZE")
     ids=[x.get("local_factor_id") for x in selected]
     if len(set(ids))!=len(ids): raise ValueError("ACTIVE_POOL_DUPLICATE_FACTOR")
     if any(int(x.get("direction",0))!=1 for x in selected): raise ValueError("DIRECTION_MUST_REMAIN_ONE")

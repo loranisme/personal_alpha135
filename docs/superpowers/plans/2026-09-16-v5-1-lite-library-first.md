@@ -1,6 +1,6 @@
 # V5.1 Lite Library-First Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Add an append-only expansion registry and a compact, deterministic Alpha Filter that proposes a reviewable 5-12 factor equal-weight Active Pool without turning the project into a research platform.
 
@@ -40,7 +40,7 @@
 - Produces CLI command: `register-expansion --definition PATH --registry PATH`
 - Consumes no mutable V4 data.
 
-- [ ] **Step 1: Write failing registry tests**
+- [x] **Step 1: Write failing registry tests**
 
 ```python
 def test_register_expansion_is_append_only_and_hashed(tmp_path):
@@ -69,13 +69,13 @@ def test_snapshot_rejects_tampered_records(tmp_path):
         load_expansion_snapshot(tmp_path)
 ```
 
-- [ ] **Step 2: Verify the tests fail**
+- [x] **Step 2: Verify the tests fail**
 
 Run: `PYTHONPATH=src .venv/bin/pytest -q tests/test_expansion_registry.py`
 
 Expected: collection fails because `us_equity_alpha.expansion_registry` does not exist.
 
-- [ ] **Step 3: Implement strict record normalization and append-only writes**
+- [x] **Step 3: Implement strict record normalization and append-only writes**
 
 Implement:
 
@@ -100,19 +100,19 @@ Normalize sorted fields/providers/parents, require `direction == 1`, calculate
 `expression_hash`, `lineage_hash` and `content_hash`, and write with mode `x`
 to `<registry>/<factor_id>/v<factor_version>.json`.
 
-- [ ] **Step 4: Add the registration CLI**
+- [x] **Step 4: Add the registration CLI**
 
 Parse a JSON definition, call `register_expansion`, emit the normalized record
 metadata and `live_orders_submitted=0`, and map validation failures to
 `BLOCKED_CONFIG` with exit code 2.
 
-- [ ] **Step 5: Run focused tests**
+- [x] **Step 5: Run focused tests**
 
 Run: `PYTHONPATH=src .venv/bin/pytest -q tests/test_expansion_registry.py tests/test_runtime_cli.py`
 
 Expected: all tests pass.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/us_equity_alpha/expansion_registry.py src/us_equity_alpha/cli.py tests/test_expansion_registry.py
@@ -134,7 +134,7 @@ git commit -m "Add append-only alpha expansion registry"
 - Produces: `write_unified_catalog(..., output_dir) -> dict[str, Path]`
 - Produces CLI command: `build-unified-catalog`.
 
-- [ ] **Step 1: Write failing unified-catalog tests**
+- [x] **Step 1: Write failing unified-catalog tests**
 
 ```python
 def test_unified_catalog_keeps_every_v4_and_expansion_version_once():
@@ -158,32 +158,32 @@ def test_v4_mechanism_comes_from_catalog_not_runtime_inference():
     assert result.iloc[0].mechanism_tag == "catalog-tag"
 ```
 
-- [ ] **Step 2: Verify the tests fail**
+- [x] **Step 2: Verify the tests fail**
 
 Run: `PYTHONPATH=src .venv/bin/pytest -q tests/test_unified_alpha_catalog.py`
 
 Expected: import fails for `build_unified_catalog`.
 
-- [ ] **Step 3: Implement catalog normalization**
+- [x] **Step 3: Implement catalog normalization**
 
 Add stable columns for `factor_id`, `factor_version`, `source_kind`, provider
 eligibility, filter eligibility, lineage/content hashes and exclusion reasons.
 Require an exact one-to-one V4-to-V5-catalog join and reject unknown or missing
 V4 IDs. Expansion mechanism tags come from their registered definitions.
 
-- [ ] **Step 4: Implement immutable bundle writer and CLI**
+- [x] **Step 4: Implement immutable bundle writer and CLI**
 
 Write `unified_alpha_catalog.csv`, `.parquet`, `catalog_summary.json` and a
 SHA-256 manifest into an empty directory. The CLI accepts `--library`,
 `--base-catalog`, `--expansion-registry`, `--provider` and `--output`.
 
-- [ ] **Step 5: Run catalog regression tests**
+- [x] **Step 5: Run catalog regression tests**
 
 Run: `PYTHONPATH=src .venv/bin/pytest -q tests/test_alpha_catalog.py tests/test_unified_alpha_catalog.py`
 
 Expected: all tests pass and the existing 135-row V4 catalog behavior remains unchanged.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/us_equity_alpha/alpha_catalog.py src/us_equity_alpha/cli.py tests/test_unified_alpha_catalog.py
@@ -204,7 +204,7 @@ git commit -m "Build unified base and expansion alpha catalog"
 - Produces: `diagnose_factor(ranks: pd.DataFrame, forward_returns: pd.DataFrame, config: Mapping[str, Any]) -> tuple[dict[str, Any], pd.DataFrame]`
 - Produces: `weekly_top10_turnover(ranks: pd.DataFrame) -> float | None`.
 
-- [ ] **Step 1: Write failing timing and metric tests**
+- [x] **Step 1: Write failing timing and metric tests**
 
 ```python
 def test_forward_label_uses_t1_open_and_t6_open():
@@ -229,32 +229,32 @@ def test_diagnostics_report_weekly_ic_years_quantiles_and_turnover():
     assert set(yearly.columns) == {"year", "valid_signal_sessions", "mean_rank_ic_5d", "year_status"}
 ```
 
-- [ ] **Step 2: Verify the tests fail**
+- [x] **Step 2: Verify the tests fail**
 
 Run: `PYTHONPATH=src .venv/bin/pytest -q tests/test_alpha_filter_diagnostics.py`
 
 Expected: import fails for the new module.
 
-- [ ] **Step 3: Implement weekly signal and label contracts**
+- [x] **Step 3: Implement weekly signal and label contracts**
 
 Reuse the XNYS-compatible weekly-first-session convention already represented
 by `sample_workflow.weekly_rebalance_dates`. Require strictly increasing,
 unique sessions and return NaN when entry/exit prices are unavailable.
 
-- [ ] **Step 4: Implement minimal diagnostics**
+- [x] **Step 4: Implement minimal diagnostics**
 
 Calculate weekly cross-sectional percentile ranks, Spearman Rank IC, unannualized
 ICIR, calendar-year IC with 26-observation full-year and 13-observation partial-
 year rules, Q1/Q5 mean returns, Q5-Q1 and weekly Top-10% retention/turnover.
 Preserve missing values instead of substituting zero.
 
-- [ ] **Step 5: Run focused tests**
+- [x] **Step 5: Run focused tests**
 
 Run: `PYTHONPATH=src .venv/bin/pytest -q tests/test_alpha_filter_diagnostics.py tests/test_backtest.py`
 
 Expected: all tests pass.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/us_equity_alpha/alpha_filter_diagnostics.py tests/test_alpha_filter_diagnostics.py
@@ -276,7 +276,7 @@ git commit -m "Add weekly trade-aligned alpha diagnostics"
 - Produces: `greedy_nonredundant_selection(candidates, conflicts, config) -> tuple[pd.DataFrame, list[str]]`
 - Produces: `build_proposed_pool(selected, run_metadata, config) -> dict[str, Any]`.
 
-- [ ] **Step 1: Write failing gate tests**
+- [x] **Step 1: Write failing gate tests**
 
 ```python
 def test_gates_do_not_flip_negative_factor():
@@ -297,7 +297,7 @@ def test_same_mechanism_is_warning_not_conflict():
     assert "SAME_MECHANISM_INCLUDED" in blockers
 ```
 
-- [ ] **Step 2: Write failing deterministic conflict tests**
+- [x] **Step 2: Write failing deterministic conflict tests**
 
 ```python
 def test_conflicts_reject_lower_priority_factor_deterministically():
@@ -313,38 +313,38 @@ def test_identical_inputs_produce_identical_proposed_pool_hash():
     assert first == second
 ```
 
-- [ ] **Step 3: Verify the tests fail**
+- [x] **Step 3: Verify the tests fail**
 
 Run: `PYTHONPATH=src .venv/bin/pytest -q tests/test_alpha_filter.py`
 
 Expected: import fails for the new module.
 
-- [ ] **Step 4: Implement gates and stable ordering**
+- [x] **Step 4: Implement gates and stable ordering**
 
 Implement the four sequential gates with statuses from the spec. Sort passing
 candidates by positive-year ratio, ICIR, mean IC, Q-spread, inverse turnover,
 coverage, semantic status, warmup and factor ID. Do not use a weighted score.
 
-- [ ] **Step 5: Implement pairwise conflicts and greedy acceptance**
+- [x] **Step 5: Implement pairwise conflicts and greedy acceptance**
 
 Compute median weekly cross-sectional Spearman correlation and mean weekly
 Top-10% Jaccard overlap only for gate-passing candidates. Add same-family hard
 edges. Walk sorted candidates and reject each candidate conflicting with an
 already accepted factor; cap accepted factors at 12 without weakening gates.
 
-- [ ] **Step 6: Add frozen default policy**
+- [x] **Step 6: Add frozen default policy**
 
 Write `config/v5_1_alpha_filter.json` with the exact thresholds in the design,
 schema version 1, evidence label `DEVELOPMENT_EXPOSED` and
 `historical_pit_verified=false`.
 
-- [ ] **Step 7: Run focused tests**
+- [x] **Step 7: Run focused tests**
 
 Run: `PYTHONPATH=src .venv/bin/pytest -q tests/test_alpha_filter.py`
 
 Expected: all tests pass.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add src/us_equity_alpha/alpha_filter.py config/v5_1_alpha_filter.json tests/test_alpha_filter.py
@@ -366,8 +366,10 @@ git commit -m "Add deterministic lightweight alpha filter"
 - Produces: `freeze_filtered_pool(proposal_path, decisions_path, output_dir) -> dict[str, Any]`
 - Produces CLI commands: `run-alpha-filter` and `freeze-filtered-pool`.
 - Produces an Active Pool accepted by `daily_selection.validate_active_pool`.
+- Consumes the Expansion Registry snapshot explicitly because the Unified
+  Catalog intentionally does not duplicate registered expressions.
 
-- [ ] **Step 1: Write failing end-to-end fixture tests**
+- [x] **Step 1: Write failing end-to-end fixture tests**
 
 ```python
 def test_filter_run_accounts_for_every_catalog_row(tmp_path):
@@ -393,13 +395,13 @@ def test_frozen_filtered_pool_is_accepted_by_daily_selection(tmp_path):
     assert pool["selection_evidence"] == "DEVELOPMENT_EXPOSED"
 ```
 
-- [ ] **Step 2: Verify the tests fail**
+- [x] **Step 2: Verify the tests fail**
 
 Run: `PYTHONPATH=src .venv/bin/pytest -q tests/test_alpha_filter_workflow.py`
 
 Expected: new workflow functions are unavailable.
 
-- [ ] **Step 3: Implement streamed factor evaluation and immutable artifacts**
+- [x] **Step 3: Implement streamed factor evaluation and immutable artifacts**
 
 Evaluate one factor at a time through the existing safe evaluator, write its
 weekly rank panel to a content-addressed Parquet cache, then release the full
@@ -407,33 +409,33 @@ daily panel before moving to the next factor. Write the required config,
 manifest, diagnostics, yearly IC, conflict, decision, proposal, composite,
 baseline and blocked-item artifacts into a new run directory.
 
-- [ ] **Step 4: Implement proposal review and freeze**
+- [x] **Step 4: Implement proposal review and freeze**
 
 Accept a decisions CSV containing `factor_id`, `factor_version`, `decision` and
 `comment`. Require every selected row to come from the proposal and pass all
 hard gates. Emit a non-overwritable pool bundle with equal weights, hashes,
 evidence fields and the existing `selected_factors` compatibility structure.
 
-- [ ] **Step 5: Update daily pool validation**
+- [x] **Step 5: Update daily pool validation**
 
 Change only the size contract from 6-8 to 5-12. Preserve hash, provider,
 direction, uniqueness and equal-weight checks. Add a regression proving old
 6-8 factor pools still validate.
 
-- [ ] **Step 6: Add CLI commands**
+- [x] **Step 6: Add CLI commands**
 
-`run-alpha-filter` accepts unified catalog, library, universe, panel directory,
-provider, policy and output paths. `freeze-filtered-pool` accepts proposal,
+`run-alpha-filter` accepts unified catalog, V4 library and its manifest, Expansion Registry,
+universe, panel directory, provider, policy and output paths. `freeze-filtered-pool` accepts proposal,
 decisions and output paths. Both emit `live_orders_submitted=0`; data blockers
 return exit code 4 and configuration blockers return exit code 2.
 
-- [ ] **Step 7: Run focused tests**
+- [x] **Step 7: Run focused tests**
 
 Run: `PYTHONPATH=src .venv/bin/pytest -q tests/test_alpha_filter_workflow.py tests/test_daily_selection.py tests/test_v5_lite_workflow.py`
 
 Expected: all tests pass.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add src/us_equity_alpha/alpha_filter_workflow.py src/us_equity_alpha/daily_selection.py src/us_equity_alpha/cli.py tests/test_alpha_filter_workflow.py tests/test_daily_selection.py

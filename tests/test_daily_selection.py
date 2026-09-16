@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from us_equity_alpha.daily_selection import calculate_active_scores
+from us_equity_alpha.daily_selection import calculate_active_scores, validate_active_pool
 
 
 def _factor(index):
@@ -66,3 +66,27 @@ def test_tampered_pool_hash_is_rejected():
     pool=_pool(); pool["provider"]="alpaca_sip"
     with pytest.raises(ValueError,match="ACTIVE_POOL_HASH_MISMATCH"):
         calculate_active_scores(_library(),pool,"alpaca_sip",inputs,universe,session)
+
+
+@pytest.mark.parametrize("size", [5, 6, 8, 12])
+def test_active_pool_accepts_v5_1_size_range_and_legacy_sizes(size):
+    pool = _pool()
+    pool["selected_factors"] = [
+        {
+            "local_factor_id": f"F{i}",
+            "direction": 1,
+            "weight": str(1 / size),
+        }
+        for i in range(size)
+    ]
+    pool.pop("content_sha256")
+    pool["content_sha256"] = hashlib.sha256(
+        json.dumps(
+            pool,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+            allow_nan=False,
+        ).encode()
+    ).hexdigest()
+    assert len(validate_active_pool(pool, "tiingo_eod")) == size

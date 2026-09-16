@@ -142,6 +142,26 @@ def _parser() -> argparse.ArgumentParser:
     unified_catalog.add_argument("--expansion-registry", required=True, type=Path)
     unified_catalog.add_argument("--provider", required=True)
     unified_catalog.add_argument("--output", required=True, type=Path)
+    alpha_filter = subparsers.add_parser(
+        "run-alpha-filter",
+        help="Run the on-demand V5.1 weekly Alpha Filter; never submit orders.",
+    )
+    alpha_filter.add_argument("--unified-catalog", required=True, type=Path)
+    alpha_filter.add_argument("--library", required=True, type=Path)
+    alpha_filter.add_argument("--v4-manifest", required=True, type=Path)
+    alpha_filter.add_argument("--expansion-registry", required=True, type=Path)
+    alpha_filter.add_argument("--universe", required=True, type=Path)
+    alpha_filter.add_argument("--market-data", required=True, type=Path)
+    alpha_filter.add_argument("--provider", required=True)
+    alpha_filter.add_argument("--policy", required=True, type=Path)
+    alpha_filter.add_argument("--output", required=True, type=Path)
+    freeze_filtered = subparsers.add_parser(
+        "freeze-filtered-pool",
+        help="Freeze reviewed V5.1 proposal decisions into an immutable Active Pool.",
+    )
+    freeze_filtered.add_argument("--proposal", required=True, type=Path)
+    freeze_filtered.add_argument("--decisions", required=True, type=Path)
+    freeze_filtered.add_argument("--output", required=True, type=Path)
     pool_review = subparsers.add_parser(
         "build-active-pool-review",
         help="Create the protected workbook for human Active Pool decisions.",
@@ -464,6 +484,48 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "filter_eligible_count": summary["filter_eligible_count"],
                 "output": str(args.output),
                 "files": {key: str(path) for key, path in paths.items()},
+                "live_orders_submitted": 0,
+            }
+        )
+        return 0
+    if args.command == "run-alpha-filter":
+        from .alpha_filter_workflow import run_alpha_filter_from_files
+
+        try:
+            result = run_alpha_filter_from_files(
+                unified_catalog=args.unified_catalog,
+                library=args.library,
+                v4_manifest=args.v4_manifest,
+                expansion_registry=args.expansion_registry,
+                universe=args.universe,
+                market_data=args.market_data,
+                provider=args.provider,
+                policy=args.policy,
+                output=args.output,
+            )
+        except (FileExistsError, OSError, ValueError, KeyError, TypeError) as exc:
+            reason = str(exc)
+            data_markers = ("MARKET_DATA", "OPEN_PANEL", "FACTOR_INPUTS", "UNIVERSE")
+            status = "BLOCKED_DATA" if any(marker in reason for marker in data_markers) else "BLOCKED_CONFIG"
+            _emit({"status": status, "errors": [reason], "live_orders_submitted": 0})
+            return 4 if status == "BLOCKED_DATA" else 2
+        _emit(result)
+        return 0
+    if args.command == "freeze-filtered-pool":
+        from .alpha_filter_workflow import freeze_filtered_pool
+
+        try:
+            pool = freeze_filtered_pool(args.proposal, args.decisions, args.output)
+        except (FileExistsError, OSError, ValueError, KeyError, TypeError) as exc:
+            _emit({"status": "BLOCKED_CONFIG", "errors": [str(exc)], "live_orders_submitted": 0})
+            return 2
+        _emit(
+            {
+                "status": "PASS",
+                "active_pool_id": pool["active_pool_id"],
+                "factor_count": len(pool["selected_factors"]),
+                "content_sha256": pool["content_sha256"],
+                "output": str(args.output),
                 "live_orders_submitted": 0,
             }
         )
