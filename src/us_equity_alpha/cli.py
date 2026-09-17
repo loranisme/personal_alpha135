@@ -127,6 +127,41 @@ def _parser() -> argparse.ArgumentParser:
     catalog.add_argument("--policy", required=True, type=Path)
     catalog.add_argument("--diagnostics", type=Path)
     catalog.add_argument("--output", required=True, type=Path)
+    expansion = subparsers.add_parser(
+        "register-expansion",
+        help="Append one immutable post-V4 factor definition to the expansion registry.",
+    )
+    expansion.add_argument("--definition", required=True, type=Path)
+    expansion.add_argument("--registry", required=True, type=Path)
+    unified_catalog = subparsers.add_parser(
+        "build-unified-catalog",
+        help="Combine immutable V4 formulas and append-only expansion versions.",
+    )
+    unified_catalog.add_argument("--library", required=True, type=Path)
+    unified_catalog.add_argument("--base-catalog", required=True, type=Path)
+    unified_catalog.add_argument("--expansion-registry", required=True, type=Path)
+    unified_catalog.add_argument("--provider", required=True)
+    unified_catalog.add_argument("--output", required=True, type=Path)
+    alpha_filter = subparsers.add_parser(
+        "run-alpha-filter",
+        help="Run the on-demand V5.1 weekly Alpha Filter; never submit orders.",
+    )
+    alpha_filter.add_argument("--unified-catalog", required=True, type=Path)
+    alpha_filter.add_argument("--library", required=True, type=Path)
+    alpha_filter.add_argument("--v4-manifest", required=True, type=Path)
+    alpha_filter.add_argument("--expansion-registry", required=True, type=Path)
+    alpha_filter.add_argument("--universe", required=True, type=Path)
+    alpha_filter.add_argument("--market-data", required=True, type=Path)
+    alpha_filter.add_argument("--provider", required=True)
+    alpha_filter.add_argument("--policy", required=True, type=Path)
+    alpha_filter.add_argument("--output", required=True, type=Path)
+    freeze_filtered = subparsers.add_parser(
+        "freeze-filtered-pool",
+        help="Freeze reviewed V5.1 proposal decisions into an immutable Active Pool.",
+    )
+    freeze_filtered.add_argument("--proposal", required=True, type=Path)
+    freeze_filtered.add_argument("--decisions", required=True, type=Path)
+    freeze_filtered.add_argument("--output", required=True, type=Path)
     pool_review = subparsers.add_parser(
         "build-active-pool-review",
         help="Create the protected workbook for human Active Pool decisions.",
@@ -157,6 +192,7 @@ def _parser() -> argparse.ArgumentParser:
     daily_select=subparsers.add_parser("daily-select",help="Run V5 Lite selection; optional helper never submits orders.")
     for name in ("library","active-pool","universe","market-data","policy","output","paper-log"):
         daily_select.add_argument("--"+name,required=True,type=Path)
+    daily_select.add_argument("--expansion-registry",type=Path)
     daily_select.add_argument("--as-of",required=True)
     daily_select.add_argument("--execution-helper",action="store_true")
     daily_select.add_argument("--positions",type=Path);daily_select.add_argument("--account",type=Path);daily_select.add_argument("--reference-prices",type=Path)
@@ -407,6 +443,94 @@ def main(argv: Sequence[str] | None = None) -> int:
             "live_orders_submitted": 0,
         })
         return 0
+    if args.command == "register-expansion":
+        from .expansion_registry import register_expansion
+
+        try:
+            definition = json.loads(args.definition.read_text(encoding="utf-8"))
+            result = register_expansion(definition, args.registry)
+        except (FileExistsError, OSError, ValueError, json.JSONDecodeError, TypeError) as exc:
+            _emit({"status": "BLOCKED_CONFIG", "errors": [str(exc)], "live_orders_submitted": 0})
+            return 2
+        _emit(
+            {
+                "status": "PASS",
+                "factor_id": result["factor_id"],
+                "factor_version": result["factor_version"],
+                "content_hash": result["content_hash"],
+                "path": result["path"],
+                "live_orders_submitted": 0,
+            }
+        )
+        return 0
+    if args.command == "build-unified-catalog":
+        from .alpha_catalog import write_unified_catalog
+
+        try:
+            paths = write_unified_catalog(
+                args.library,
+                args.base_catalog,
+                args.expansion_registry,
+                args.provider,
+                args.output,
+            )
+            summary = json.loads(paths["summary"].read_text(encoding="utf-8"))
+        except (FileExistsError, OSError, ValueError, KeyError, TypeError) as exc:
+            _emit({"status": "BLOCKED_CONFIG", "errors": [str(exc)], "live_orders_submitted": 0})
+            return 2
+        _emit(
+            {
+                "status": "PASS",
+                "factor_version_count": summary["factor_version_count"],
+                "filter_eligible_count": summary["filter_eligible_count"],
+                "output": str(args.output),
+                "files": {key: str(path) for key, path in paths.items()},
+                "live_orders_submitted": 0,
+            }
+        )
+        return 0
+    if args.command == "run-alpha-filter":
+        from .alpha_filter_workflow import run_alpha_filter_from_files
+
+        try:
+            result = run_alpha_filter_from_files(
+                unified_catalog=args.unified_catalog,
+                library=args.library,
+                v4_manifest=args.v4_manifest,
+                expansion_registry=args.expansion_registry,
+                universe=args.universe,
+                market_data=args.market_data,
+                provider=args.provider,
+                policy=args.policy,
+                output=args.output,
+            )
+        except (FileExistsError, OSError, ValueError, KeyError, TypeError) as exc:
+            reason = str(exc)
+            data_markers = ("MARKET_DATA", "OPEN_PANEL", "FACTOR_INPUTS", "UNIVERSE")
+            status = "BLOCKED_DATA" if any(marker in reason for marker in data_markers) else "BLOCKED_CONFIG"
+            _emit({"status": status, "errors": [reason], "live_orders_submitted": 0})
+            return 4 if status == "BLOCKED_DATA" else 2
+        _emit(result)
+        return 0
+    if args.command == "freeze-filtered-pool":
+        from .alpha_filter_workflow import freeze_filtered_pool
+
+        try:
+            pool = freeze_filtered_pool(args.proposal, args.decisions, args.output)
+        except (FileExistsError, OSError, ValueError, KeyError, TypeError) as exc:
+            _emit({"status": "BLOCKED_CONFIG", "errors": [str(exc)], "live_orders_submitted": 0})
+            return 2
+        _emit(
+            {
+                "status": "PASS",
+                "active_pool_id": pool["active_pool_id"],
+                "factor_count": len(pool["selected_factors"]),
+                "content_sha256": pool["content_sha256"],
+                "output": str(args.output),
+                "live_orders_submitted": 0,
+            }
+        )
+        return 0
     if args.command == "build-active-pool-review":
         from .active_pool import build_active_pool_review
         import pandas as pd
@@ -499,7 +623,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "daily-select":
         from .v5_lite import run_v5_lite_from_files
         try:
-            result=run_v5_lite_from_files(library=args.library,active_pool=args.active_pool,universe=args.universe,market_data=args.market_data,policy=args.policy,session=args.as_of,output=args.output,paper_log=args.paper_log,execution_helper=args.execution_helper,positions=args.positions,account=args.account,reference_prices=args.reference_prices)
+            result=run_v5_lite_from_files(library=args.library,expansion_registry=args.expansion_registry,active_pool=args.active_pool,universe=args.universe,market_data=args.market_data,policy=args.policy,session=args.as_of,output=args.output,paper_log=args.paper_log,execution_helper=args.execution_helper,positions=args.positions,account=args.account,reference_prices=args.reference_prices)
         except (FileExistsError,OSError,ValueError,KeyError,TypeError) as exc:
             reason=str(exc);status="BLOCKED_DATA" if "BELOW_500" in reason or "INSUFFICIENT" in reason else "BLOCKED_CONFIG"
             _emit({"status":status,"errors":[reason],"live_orders_submitted":0});return 4 if status=="BLOCKED_DATA" else 2

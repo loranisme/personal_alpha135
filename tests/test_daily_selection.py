@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from us_equity_alpha.daily_selection import calculate_active_scores
+from us_equity_alpha.daily_selection import calculate_active_scores, validate_active_pool
 
 
 def _factor(index):
@@ -19,7 +19,7 @@ def _factor(index):
                 settings={"delay":0,"decay":0,"neutralization":"NONE"})
 
 
-def _library(): return {"factors":[_factor(i) for i in range(7)]}
+def _library(): return {"factors":[_factor(i) for i in range(16)]}
 
 
 def _pool():
@@ -27,7 +27,7 @@ def _pool():
              "library_version":"reconstruction-v4","v4_manifest_sha256":"a"*64,
              "provider":"tiingo_eod","selected_factors":[
                  {"local_factor_id":f"F{i}","family_id":f"family-{i}","mechanism_tag":f"m{i}",
-                  "direction":1,"comment":"chosen","weight":str(1/6)} for i in range(6)],
+                  "direction":1,"comment":"chosen","weight":str(1/8)} for i in range(8)],
              "decision_list":[],"warnings":[],"selection_basis":"HUMAN_REVIEW",
              "data_exposure":{},"live_orders_submitted":0}
     payload["content_sha256"]=hashlib.sha256(json.dumps(payload,sort_keys=True,separators=(",",":"),ensure_ascii=False,allow_nan=False).encode()).hexdigest()
@@ -47,8 +47,8 @@ def _inputs(count=500, missing=0):
 def test_only_active_factors_are_computed_and_spy_is_never_ranked():
     inputs,universe,session=_inputs()
     result=calculate_active_scores(_library(),_pool(),"tiingo_eod",inputs,universe,session)
-    assert set(result.factor_panels)=={f"F{i}" for i in range(6)}
-    assert "F6" not in result.factor_panels
+    assert set(result.factor_panels)=={f"F{i}" for i in range(8)}
+    assert "F8" not in result.factor_panels
     assert "SPY" not in result.composite.index
     assert len(result.composite.dropna())==500
     assert result.status=="PASS"
@@ -66,3 +66,42 @@ def test_tampered_pool_hash_is_rejected():
     pool=_pool(); pool["provider"]="alpaca_sip"
     with pytest.raises(ValueError,match="ACTIVE_POOL_HASH_MISMATCH"):
         calculate_active_scores(_library(),pool,"alpaca_sip",inputs,universe,session)
+
+
+@pytest.mark.parametrize("size", [8, 9, 12, 15])
+def test_active_pool_accepts_approved_v5_1_size_range(size):
+    pool = _pool()
+    pool["selected_factors"] = [
+        {
+            "local_factor_id": f"F{i}",
+            "direction": 1,
+            "weight": str(1 / size),
+        }
+        for i in range(size)
+    ]
+    pool.pop("content_sha256")
+    pool["content_sha256"] = hashlib.sha256(
+        json.dumps(
+            pool,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+            allow_nan=False,
+        ).encode()
+    ).hexdigest()
+    assert len(validate_active_pool(pool, "tiingo_eod")) == size
+
+
+@pytest.mark.parametrize("size", [7, 16])
+def test_active_pool_rejects_sizes_outside_approved_v5_1_range(size):
+    pool = _pool()
+    pool["selected_factors"] = [
+        {"local_factor_id": f"F{i}", "direction": 1, "weight": str(1 / size)}
+        for i in range(size)
+    ]
+    pool.pop("content_sha256")
+    pool["content_sha256"] = hashlib.sha256(
+        json.dumps(pool, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False).encode()
+    ).hexdigest()
+    with pytest.raises(ValueError, match="ACTIVE_POOL_SIZE"):
+        validate_active_pool(pool, "tiingo_eod")

@@ -37,7 +37,7 @@ SUPPORTED_DEFAULT_PROVIDERS = {"alpaca_sip", "tiingo_eod"}
 
 
 def _validate_policy(policy: Mapping[str, Any]) -> None:
-    if int(policy.get("minimum_factors", 0)) != 6 or int(policy.get("maximum_factors", 0)) != 8:
+    if int(policy.get("minimum_factors", 0)) != 8 or int(policy.get("maximum_factors", 0)) != 15:
         raise ValueError("INVALID_ACTIVE_POOL_SIZE_POLICY")
     if policy.get("default_provider") not in SUPPORTED_DEFAULT_PROVIDERS:
         raise ValueError("UNSUPPORTED_ACTIVE_POOL_PROVIDER")

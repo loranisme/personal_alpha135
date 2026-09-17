@@ -1,0 +1,19 @@
+{
+  "actual_end": "2026-09-14",
+  "actual_start": "2019-01-02",
+  "historical_pit_verified": false,
+  "independent_oos_claim_allowed": false,
+  "live_orders_submitted": 0,
+  "median_open_cross_section_coverage": 0.988,
+  "membership": "CURRENT_SNAPSHOT_SURVIVORSHIP_BIASED",
+  "minimum_open_cross_section_coverage": 0.942,
+  "provider_adapter": "yfinance_eod",
+  "requested_range": "2019-01-02 to 2026-09-14",
+  "run_purpose": "LONG_HISTORY_ENGINEERING_FILTER_DIAGNOSTIC",
+  "selection_evidence": "DEVELOPMENT_EXPOSED",
+  "sessions": 1935,
+  "source": "Yahoo Finance via saved yfinance batch files",
+  "source_price_adjustment": "auto_adjust=True",
+  "universe_count": 500,
+  "vwap_binding": "DERIVED_TYPICAL_PRICE_(HIGH+LOW+CLOSE)/3"
+}

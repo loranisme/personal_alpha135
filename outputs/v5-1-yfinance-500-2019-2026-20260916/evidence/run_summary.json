@@ -1,0 +1,16 @@
+{
+  "composite_comparison_status": "COMPLETE",
+  "filter_run_id": "v5-1-filter-3bc4030308782cd7bbe8",
+  "gate_summary": {
+    "catalog_count": 135,
+    "gate_pass_count": 29,
+    "pool_cap_reject_count": 0,
+    "redundancy_reject_count": 15,
+    "selected_count": 14
+  },
+  "historical_pit_verified": false,
+  "independent_oos_claim_allowed": false,
+  "live_orders_submitted": 0,
+  "selection_evidence": "DEVELOPMENT_EXPOSED",
+  "status": "READY_FOR_HUMAN_REVIEW"
+}
