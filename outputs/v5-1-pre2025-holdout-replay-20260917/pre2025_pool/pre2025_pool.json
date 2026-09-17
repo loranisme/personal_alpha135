@@ -1,0 +1,147 @@
+{
+  "actual_signal_end": "2024-12-27",
+  "actual_signal_start": "2019-01-04",
+  "artifact_type": "V5_1_PRE2025_POOL",
+  "champion_lock_sha256": "9dd20f875717a1aaa1b37d56de9b784306bd2753f4ab0de3f8c6ae4e81ee49d1",
+  "content_sha256": "d4b6eec5491894387700768ad63ea2e681dc63eea9e43f5a20c5892e950f5387",
+  "factor_count": 15,
+  "filter_config_sha256": "f65e5ee4256167e95d6af9fb13d83ad081a428757980c79d8270c6540f0845da",
+  "filter_run_id": "v5-1-filter-a5fcea4691b674f90905",
+  "frozen_at": "2026-09-17T08:36:35.543290+00:00",
+  "gate_reapplication_after_holdout": false,
+  "historical_evidence_kind": "RETROSPECTIVE_HOLDOUT_REPLAY",
+  "holdout_not_before": "2025-01-01",
+  "independent_oos_claim_allowed": false,
+  "pool_id": "PRE2025_POOL",
+  "provider": "yfinance_eod",
+  "reselection_after_holdout_allowed": false,
+  "schema_version": 1,
+  "selected_factors": [
+    {
+      "direction": 1,
+      "factor_id": "local_reconstruction__baaf2b3c8bbb8a0c",
+      "factor_version": 4,
+      "family_id": "mechanism_shape__2105d4a5063deea5",
+      "mechanism_tag": "mean_reversion",
+      "weight": "0.06666666666666667"
+    },
+    {
+      "direction": 1,
+      "factor_id": "local_reconstruction__59a3b5921ccdee46",
+      "factor_version": 4,
+      "family_id": "mechanism_shape__42db4a74509d0fda",
+      "mechanism_tag": "illiquidity_proxy",
+      "weight": "0.06666666666666667"
+    },
+    {
+      "direction": 1,
+      "factor_id": "local_reconstruction__065cad4f5c074df9",
+      "factor_version": 4,
+      "family_id": "mechanism_shape__e0a910b4da75d51b",
+      "mechanism_tag": "momentum",
+      "weight": "0.06666666666666667"
+    },
+    {
+      "direction": 1,
+      "factor_id": "local_reconstruction__24f541dd8bfc51f3",
+      "factor_version": 4,
+      "family_id": "mechanism_shape__f61892d082d79f2b",
+      "mechanism_tag": "vwap_deviation",
+      "weight": "0.06666666666666667"
+    },
+    {
+      "direction": 1,
+      "factor_id": "local_reconstruction__a8e3fd3d7d286dd1",
+      "factor_version": 4,
+      "family_id": "mechanism_shape__520adb68a8d8a3e7",
+      "mechanism_tag": "realized_risk",
+      "weight": "0.06666666666666667"
+    },
+    {
+      "direction": 1,
+      "factor_id": "local_reconstruction__d4ddaff5d7487498",
+      "factor_version": 4,
+      "family_id": "mechanism_shape__b9dd3d6f56330a77",
+      "mechanism_tag": "intraday_return",
+      "weight": "0.06666666666666667"
+    },
+    {
+      "direction": 1,
+      "factor_id": "local_reconstruction__41df849e78d9b25c",
+      "factor_version": 4,
+      "family_id": "mechanism_shape__06d6cf4a1bf6db54",
+      "mechanism_tag": "trading_activity",
+      "weight": "0.06666666666666667"
+    },
+    {
+      "direction": 1,
+      "factor_id": "local_reconstruction__7038badf1951f960",
+      "factor_version": 4,
+      "family_id": "mechanism_shape__993136fa2e5f8e5a",
+      "mechanism_tag": "intraday_return",
+      "weight": "0.06666666666666667"
+    },
+    {
+      "direction": 1,
+      "factor_id": "local_reconstruction__4a73ed249b2fb3ae",
+      "factor_version": 4,
+      "family_id": "mechanism_shape__4f557d5bea763407",
+      "mechanism_tag": "realized_risk",
+      "weight": "0.06666666666666667"
+    },
+    {
+      "direction": 1,
+      "factor_id": "local_reconstruction__19590aa8ebe4521d",
+      "factor_version": 4,
+      "family_id": "mechanism_shape__458106259a8af41a",
+      "mechanism_tag": "mean_reversion",
+      "weight": "0.06666666666666667"
+    },
+    {
+      "direction": 1,
+      "factor_id": "local_reconstruction__7c781ae4018431cf",
+      "factor_version": 4,
+      "family_id": "mechanism_shape__7a58d4bae8033be1",
+      "mechanism_tag": "benchmark_beta_change",
+      "weight": "0.06666666666666667"
+    },
+    {
+      "direction": 1,
+      "factor_id": "local_reconstruction__4b10c85b8fc0e113",
+      "factor_version": 4,
+      "family_id": "mechanism_shape__3323fd1e3ab0c1e4",
+      "mechanism_tag": "mean_reversion",
+      "weight": "0.06666666666666667"
+    },
+    {
+      "direction": 1,
+      "factor_id": "local_reconstruction__8707c4f7b19b83e3",
+      "factor_version": 4,
+      "family_id": "mechanism_shape__d3db4e3cf4e1414e",
+      "mechanism_tag": "trading_activity",
+      "weight": "0.06666666666666667"
+    },
+    {
+      "direction": 1,
+      "factor_id": "local_reconstruction__561a18eec61a35a3",
+      "factor_version": 4,
+      "family_id": "mechanism_shape__cfe4e4b86d8df481",
+      "mechanism_tag": "vwap_deviation",
+      "weight": "0.06666666666666667"
+    },
+    {
+      "direction": 1,
+      "factor_id": "local_reconstruction__5088d80b86aaddee",
+      "factor_version": 4,
+      "family_id": "mechanism_shape__970d89aa118babfa",
+      "mechanism_tag": "momentum",
+      "weight": "0.06666666666666667"
+    }
+  ],
+  "source_decisions_sha256": "8848e6a2bafbd27c71f34e869d381f2819132f84b6d87899af9034611c247fbe",
+  "source_proposal_sha256": "5c3133d0b00bc91fc84a80a7a2d8da2bfbdd495af5c69a981da8776daa22c6c5",
+  "status": "FROZEN_BEFORE_HOLDOUT_ACCESS",
+  "training_data_end": "2024-12-31",
+  "training_data_start": "2019-01-02",
+  "weighting": "FLAT_EQUAL_WEIGHT"
+}

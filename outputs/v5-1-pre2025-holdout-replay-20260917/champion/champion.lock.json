@@ -1,0 +1,181 @@
+{
+  "artifact_type": "V5_1_FULL_HISTORY_CHAMPION_LOCK",
+  "champion_id": "V5_1_FULL_HISTORY_14_FACTOR_CHAMPION",
+  "content_sha256": "28037e743fe419bd4116383d5e93e28608b24b1338ea316bdef34c1bc21450ab",
+  "factor_count": 14,
+  "filter_config": {
+    "active_pool_max": 15,
+    "active_pool_min": 8,
+    "benchmark_security_id": "SPY",
+    "forward_label": "T_CLOSE_T1_OPEN_T6_OPEN",
+    "full_year_min_signal_sessions": 26,
+    "historical_pit_verified": false,
+    "independent_oos_claim_allowed": false,
+    "max_weekly_top10_turnover": 0.8,
+    "min_median_coverage": 0.95,
+    "min_positive_year_ratio": 0.6,
+    "min_valid_signal_sessions": 100,
+    "partial_final_year_min_signal_sessions": 13,
+    "policy_id": "V5_1_LITE_LIBRARY_FIRST_ALPHA_FILTER",
+    "primary_frequency": "WEEKLY_REBALANCE_SIGNAL",
+    "quantiles": 5,
+    "require_positive_mean_rank_ic": true,
+    "require_positive_q5_q1": true,
+    "schema_version": 1,
+    "score_corr_conflict": 0.8,
+    "selection_evidence": "DEVELOPMENT_EXPOSED",
+    "survivorship_bias": true,
+    "top10_overlap_conflict": 0.7
+  },
+  "filter_config_sha256": "f65e5ee4256167e95d6af9fb13d83ad081a428757980c79d8270c6540f0845da",
+  "filter_run_id": "v5-1-filter-3bc4030308782cd7bbe8",
+  "frozen_at": "2026-09-17T08:13:30.285368+00:00",
+  "independent_oos_claim_allowed": false,
+  "mutation_policy": "NEW_CANDIDATE_ID_REQUIRED",
+  "observed_full_history_metrics": {
+    "comparison_status": "COMPLETE",
+    "composite_id": "V5_1_PROPOSED",
+    "factor_count": 14,
+    "forward_label": "T_CLOSE_T1_OPEN_T6_OPEN",
+    "icir_5d": 0.167586471909816,
+    "max_drawdown": -0.21700976798867,
+    "mean_rank_ic_5d": 0.0246262833272486,
+    "missing_reason": null,
+    "modeled_fees": 71701.12904119093,
+    "portfolio_metrics_used_for_filter_admission": false,
+    "positive_year_ratio": 1.0,
+    "provider": "yfinance_eod",
+    "q5_minus_q1_5d": 0.0026219046583336,
+    "selection_evidence": "DEVELOPMENT_EXPOSED",
+    "sharpe": 0.8527163099670021,
+    "total_return": 2.027228758741491,
+    "weekly_top10_turnover": 0.5898708437162641
+  },
+  "provider": "yfinance_eod",
+  "sample_end": "2026-09-11",
+  "sample_start": "2019-01-04",
+  "schema_version": 1,
+  "selected_factors": [
+    {
+      "direction": 1,
+      "factor_id": "local_reconstruction__baaf2b3c8bbb8a0c",
+      "factor_version": 4,
+      "family_id": "mechanism_shape__2105d4a5063deea5",
+      "mechanism_tag": "mean_reversion",
+      "weight": "0.07142857142857142"
+    },
+    {
+      "direction": 1,
+      "factor_id": "local_reconstruction__065cad4f5c074df9",
+      "factor_version": 4,
+      "family_id": "mechanism_shape__e0a910b4da75d51b",
+      "mechanism_tag": "momentum",
+      "weight": "0.07142857142857142"
+    },
+    {
+      "direction": 1,
+      "factor_id": "local_reconstruction__59a3b5921ccdee46",
+      "factor_version": 4,
+      "family_id": "mechanism_shape__42db4a74509d0fda",
+      "mechanism_tag": "illiquidity_proxy",
+      "weight": "0.07142857142857142"
+    },
+    {
+      "direction": 1,
+      "factor_id": "local_reconstruction__24f541dd8bfc51f3",
+      "factor_version": 4,
+      "family_id": "mechanism_shape__f61892d082d79f2b",
+      "mechanism_tag": "vwap_deviation",
+      "weight": "0.07142857142857142"
+    },
+    {
+      "direction": 1,
+      "factor_id": "local_reconstruction__4a73ed249b2fb3ae",
+      "factor_version": 4,
+      "family_id": "mechanism_shape__4f557d5bea763407",
+      "mechanism_tag": "realized_risk",
+      "weight": "0.07142857142857142"
+    },
+    {
+      "direction": 1,
+      "factor_id": "local_reconstruction__7c781ae4018431cf",
+      "factor_version": 4,
+      "family_id": "mechanism_shape__7a58d4bae8033be1",
+      "mechanism_tag": "benchmark_beta_change",
+      "weight": "0.07142857142857142"
+    },
+    {
+      "direction": 1,
+      "factor_id": "local_reconstruction__4b10c85b8fc0e113",
+      "factor_version": 4,
+      "family_id": "mechanism_shape__3323fd1e3ab0c1e4",
+      "mechanism_tag": "mean_reversion",
+      "weight": "0.07142857142857142"
+    },
+    {
+      "direction": 1,
+      "factor_id": "local_reconstruction__263008edd39d3975",
+      "factor_version": 4,
+      "family_id": "mechanism_shape__4af33dc6465845c7",
+      "mechanism_tag": "momentum",
+      "weight": "0.07142857142857142"
+    },
+    {
+      "direction": 1,
+      "factor_id": "local_reconstruction__d4ddaff5d7487498",
+      "factor_version": 4,
+      "family_id": "mechanism_shape__b9dd3d6f56330a77",
+      "mechanism_tag": "intraday_return",
+      "weight": "0.07142857142857142"
+    },
+    {
+      "direction": 1,
+      "factor_id": "local_reconstruction__7aefcc7a75724728",
+      "factor_version": 4,
+      "family_id": "mechanism_shape__9c6fbd01836f02bb",
+      "mechanism_tag": "trading_activity",
+      "weight": "0.07142857142857142"
+    },
+    {
+      "direction": 1,
+      "factor_id": "local_reconstruction__346641b13211274d",
+      "factor_version": 4,
+      "family_id": "mechanism_shape__fe8093f38f1049fd",
+      "mechanism_tag": "mean_reversion",
+      "weight": "0.07142857142857142"
+    },
+    {
+      "direction": 1,
+      "factor_id": "local_reconstruction__8b8ff896fe4d8f74",
+      "factor_version": 4,
+      "family_id": "mechanism_shape__458106259a8af41a",
+      "mechanism_tag": "mean_reversion",
+      "weight": "0.07142857142857142"
+    },
+    {
+      "direction": 1,
+      "factor_id": "local_reconstruction__a8e3fd3d7d286dd1",
+      "factor_version": 4,
+      "family_id": "mechanism_shape__520adb68a8d8a3e7",
+      "mechanism_tag": "realized_risk",
+      "weight": "0.07142857142857142"
+    },
+    {
+      "direction": 1,
+      "factor_id": "local_reconstruction__561a18eec61a35a3",
+      "factor_version": 4,
+      "family_id": "mechanism_shape__cfe4e4b86d8df481",
+      "mechanism_tag": "vwap_deviation",
+      "weight": "0.07142857142857142"
+    }
+  ],
+  "selection_evidence": "DEVELOPMENT_EXPOSED",
+  "source_artifact_hashes": {
+    "comparison": "40f108d3ebb3eda443f626e3111e33f92cd99ff1c3b9b1c04d7173d5d63d79af",
+    "config": "f65e5ee4256167e95d6af9fb13d83ad081a428757980c79d8270c6540f0845da",
+    "decisions": "285e8134de548262bdb4102788e1dc80fcae4021fa79c8a425f2d9d15f431609",
+    "proposal": "05e4903a73a6c118608bb8d8d46410192874379866179d730ee98047095a9b11"
+  },
+  "status": "IMMUTABLY_FROZEN",
+  "weighting": "FLAT_EQUAL_WEIGHT"
+}

@@ -1,0 +1,9 @@
+{
+  "artifact_type": "V5_1_HISTORICAL_HOLDOUT_REPLAY_MANIFEST",
+  "files": {
+    "holdout_access_commit.json": "8153950f5194bb4320941cb1d991262af056cc3336972d7fad7be8884f5620e3",
+    "holdout_replay_result.json": "7e5ea71a42ab9df0ce028b62e4bacbaf1cec2d4dd08b49a2859583f37f77d6b6"
+  },
+  "replay_limit": 1,
+  "schema_version": 1
+}

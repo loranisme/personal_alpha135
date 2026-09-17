@@ -1,0 +1,9 @@
+{
+  "artifact_type": "V5_1_PRE2025_POOL_MANIFEST",
+  "created_before_holdout_access": true,
+  "files": {
+    "pre2025_pool.json": "97a69b657f8fc25898daaca6c2e62f1213b90fcabf40fe4dfefdb9aae2885fa2"
+  },
+  "pool_content_sha256": "d4b6eec5491894387700768ad63ea2e681dc63eea9e43f5a20c5892e950f5387",
+  "schema_version": 1
+}

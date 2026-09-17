@@ -1,0 +1,33 @@
+{
+  "artifact_type": "HISTORICAL_HOLDOUT_ACCESS_COMMIT",
+  "champion_lock_sha256": "9dd20f875717a1aaa1b37d56de9b784306bd2753f4ab0de3f8c6ae4e81ee49d1",
+  "committed_at": "2026-09-17T08:37:06.900189+00:00",
+  "content_sha256": "6637ee69ecf677c0879b26c7a02abb78d83e4deb2f2cb4cdd84e937b5e0f22c9",
+  "holdout_input_hashes": {
+    "close.parquet": "0b08febf4e9daefea8ec61f15d3e3f77a593e359fbf0cb3d08b6e815efd4a07e",
+    "filter_decisions.csv": "285e8134de548262bdb4102788e1dc80fcae4021fa79c8a425f2d9d15f431609",
+    "open.parquet": "c0f90dd77e21c069d88a570e2b55a2a985970dcab0cd2f561af9500f765d075a",
+    "rank_cache/local_reconstruction__065cad4f5c074df9__v4__76ddc7bdacc38bbd.parquet": "76ddc7bdacc38bbd595344c7dd367075ce9d18e8a279027d8d8ae79e55141a41",
+    "rank_cache/local_reconstruction__19590aa8ebe4521d__v4__c5c9d3d85aa56fb2.parquet": "c5c9d3d85aa56fb2e9cd471bf841dc47937422907a272dded3c0425f4670d5dd",
+    "rank_cache/local_reconstruction__24f541dd8bfc51f3__v4__5a0e5532ac5e9fd5.parquet": "5a0e5532ac5e9fd5a000d06fdbcd883e5f22fe0c73ff1453c22c938c4d274807",
+    "rank_cache/local_reconstruction__41df849e78d9b25c__v4__56a56934af092b37.parquet": "56a56934af092b3737c6bd94f28984514e4aa6fd9c34aaad99f45be93ad8a1f5",
+    "rank_cache/local_reconstruction__4a73ed249b2fb3ae__v4__b616c50b2c0d582a.parquet": "b616c50b2c0d582aebecd85a8ad6e53ef6ea2024ef66855af2615ca7b89c5506",
+    "rank_cache/local_reconstruction__4b10c85b8fc0e113__v4__102eccaeae4ed139.parquet": "102eccaeae4ed1392145fd12793075cc55d7deeda2c1bf1bc28255b48998137f",
+    "rank_cache/local_reconstruction__5088d80b86aaddee__v4__5c46d9b3f4e9b93e.parquet": "5c46d9b3f4e9b93e58e48085d80b2bcb48886ea9b1452492d7d1e6a488c457c6",
+    "rank_cache/local_reconstruction__561a18eec61a35a3__v4__aaa8494b6babeb9e.parquet": "aaa8494b6babeb9e16923d30f3ea250cc5803e941998ce751f1c29cd01a72bf1",
+    "rank_cache/local_reconstruction__59a3b5921ccdee46__v4__2573871c7cf4e353.parquet": "2573871c7cf4e353b4323ecdba794b37f917dabcaa5ecd25ba26d4a618455dae",
+    "rank_cache/local_reconstruction__7038badf1951f960__v4__5652df766ecc913a.parquet": "5652df766ecc913a4358b253f30262a79b19fc1171d3e254044efc9a59ff2669",
+    "rank_cache/local_reconstruction__7c781ae4018431cf__v4__ed853e316a41a537.parquet": "ed853e316a41a537a140eedceece3b800bc1f7be5c095f3815213263fd592631",
+    "rank_cache/local_reconstruction__8707c4f7b19b83e3__v4__3e80bf1ff6465f5d.parquet": "3e80bf1ff6465f5dc90b687d62f24deee70d9d32650df8940af5b29c2100f315",
+    "rank_cache/local_reconstruction__a8e3fd3d7d286dd1__v4__343521611f36f741.parquet": "343521611f36f741f37ccff3329b0fba56bb41d28e1b55cedc355fdf243e51f9",
+    "rank_cache/local_reconstruction__baaf2b3c8bbb8a0c__v4__f6af83333da94a74.parquet": "f6af83333da94a747b63adeb1ce1180d5f42e0789db7f8045cd28c3bba0ae2ca",
+    "rank_cache/local_reconstruction__d4ddaff5d7487498__v4__aa8aab856ce06fd8.parquet": "aa8aab856ce06fd85dad27bcdee01bd71c6024cdc8dcd318f4fe24e6da9aec88"
+  },
+  "holdout_start": "2025-01-01",
+  "pool_content_sha256": "d4b6eec5491894387700768ad63ea2e681dc63eea9e43f5a20c5892e950f5387",
+  "pool_file_sha256": "97a69b657f8fc25898daaca6c2e62f1213b90fcabf40fe4dfefdb9aae2885fa2",
+  "pool_id": "PRE2025_POOL",
+  "replay_limit": 1,
+  "schema_version": 1,
+  "status": "COMMITTED_BEFORE_LABEL_READ"
+}

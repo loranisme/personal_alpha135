@@ -1,0 +1,33 @@
+{
+  "artifact_type": "V5_1_PRE2025_HISTORICAL_HOLDOUT_DELIVERY",
+  "champion_content_sha256": "28037e743fe419bd4116383d5e93e28608b24b1338ea316bdef34c1bc21450ab",
+  "files": {
+    "HISTORICAL_HOLDOUT_REPLAY_REPORT.md": "221eb8a1f62c81072df9db4effddca291a57da189cfd4b81b36b4a66d4a3d0f9",
+    "champion/champion.lock.json": "9dd20f875717a1aaa1b37d56de9b784306bd2753f4ab0de3f8c6ae4e81ee49d1",
+    "champion/manifest.json": "0f6e83cb8847751a0040cd6c73db46e533117f5654be77702e9999edae86aec3",
+    "development_vs_holdout.csv": "29cd9d95e277b0c003349b24d145d29a4754a27e2f9a94f769b0f2d3432b6873",
+    "holdout_factor_diagnostics.csv": "aaee10d8bed8fcb93d4cd9389b51360ba0f45930ef7508df5c910693a0479d9c",
+    "holdout_replay/holdout_access_commit.json": "8153950f5194bb4320941cb1d991262af056cc3336972d7fad7be8884f5620e3",
+    "holdout_replay/holdout_replay_result.json": "7e5ea71a42ab9df0ce028b62e4bacbaf1cec2d4dd08b49a2859583f37f77d6b6",
+    "holdout_replay/manifest.json": "bb7f7c86f4007e7678134d36d9dbebdebf080510bd5da026835a921a4b95144d",
+    "holdout_yearly_ic.csv": "f0f749c60f6a5aa0e309b12d20afdf92654d6f46c49e60478ca78b54f4bd21df",
+    "pool_comparison.csv": "2c18fa792f91928ff99f5fd66a3c35f24b3265639a7cc30df7cae261bcc9be4e",
+    "pre2025_development_diagnostic.json": "2bc00730860bbb52013205bf9ca92665c0e8c9843aeb808d2a69792fbab9d669",
+    "pre2025_pool/filter_evidence/final_selected_factors.csv": "0436296f81bde5f06bebb9be95d58fcee6e0dff0eb355e6ddd3fe2b8874aaaae",
+    "pre2025_pool/filter_evidence/gate_funnel.csv": "672338ec8265e220ea895128f9bbecd16fa446591ab6d6e4069755e20790eccc",
+    "pre2025_pool/filter_evidence/gate_pass_factors.csv": "a59e7bff54ebad08d8c142a0b9b029ac0fcbe42222fc34131965757da123513f",
+    "pre2025_pool/filter_evidence/proposed_active_pool.json": "5c3133d0b00bc91fc84a80a7a2d8da2bfbdd495af5c69a981da8776daa22c6c5",
+    "pre2025_pool/filter_evidence/redundancy_deletions.csv": "e66b237a0ecdb997003393e116e2bbb14d1c72c95e10bc3483bf09f52fbe62a6",
+    "pre2025_pool/filter_evidence/run_status.json": "3679948cc9c7ad758f68060a627bcc27efaccc8154f69fb3f18ac3e2d2753ec9",
+    "pre2025_pool/filter_evidence_manifest.json": "89629a4a45c9f877010ccbb1bc62f52a08b407ffe21320b10975f1043fb064d6",
+    "pre2025_pool/manifest.json": "cd2b122f5018ce14a37d8ebe01d032ccf59ed8d2d10fbc25ef6d0b7eb82b2ee1",
+    "pre2025_pool/pre2025_pool.json": "97a69b657f8fc25898daaca6c2e62f1213b90fcabf40fe4dfefdb9aae2885fa2",
+    "pre2025_pool/pre2025_run_summary.json": "98172c3abe14e8469b71ff1a96cd0c51ff41a90c7b856cb74af7e3b25975a4c2"
+  },
+  "gate_or_threshold_changed": false,
+  "holdout_result_content_sha256": "5706af2a62c34d2d6a53964734bcf802e914f1ffbe7e3f46227be9f363e2030f",
+  "independent_oos_claim_allowed": false,
+  "pool_modified_after_holdout": false,
+  "pre2025_pool_content_sha256": "d4b6eec5491894387700768ad63ea2e681dc63eea9e43f5a20c5892e950f5387",
+  "schema_version": 1
+}

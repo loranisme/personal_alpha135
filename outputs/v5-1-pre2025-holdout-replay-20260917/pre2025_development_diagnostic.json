@@ -1,0 +1,59 @@
+{
+  "artifact_type": "PRE2025_POOL_DEVELOPMENT_DIAGNOSTIC",
+  "composite_metrics": {
+    "icir_5d": 0.16889568742704295,
+    "mean_rank_ic_5d": 0.02643135299658236,
+    "median_cross_section_coverage": 0.96,
+    "positive_year_ratio": 1.0,
+    "q1_mean_5d": 0.002450799255082641,
+    "q5_mean_5d": 0.00472293426541524,
+    "q5_minus_q1_5d": 0.002272135010332599,
+    "valid_signal_sessions": 225,
+    "weekly_top10_turnover": 0.6396996011643428
+  },
+  "composite_yearly": [
+    {
+      "mean_rank_ic_5d": 0.0104226572574426,
+      "valid_signal_sessions": 18,
+      "year": 2020,
+      "year_status": "INSUFFICIENT"
+    },
+    {
+      "mean_rank_ic_5d": 0.009619093959167876,
+      "valid_signal_sessions": 52,
+      "year": 2021,
+      "year_status": "FULL_YEAR"
+    },
+    {
+      "mean_rank_ic_5d": 0.04623149549256497,
+      "valid_signal_sessions": 52,
+      "year": 2022,
+      "year_status": "FULL_YEAR"
+    },
+    {
+      "mean_rank_ic_5d": 0.02264580173361205,
+      "valid_signal_sessions": 52,
+      "year": 2023,
+      "year_status": "FULL_YEAR"
+    },
+    {
+      "mean_rank_ic_5d": 0.03289478925410056,
+      "valid_signal_sessions": 51,
+      "year": 2024,
+      "year_status": "FULL_YEAR"
+    }
+  ],
+  "generated_after_holdout_replay": true,
+  "period_end": "2024-12-31",
+  "period_start": "2019-01-02",
+  "pool_content_sha256": "d4b6eec5491894387700768ad63ea2e681dc63eea9e43f5a20c5892e950f5387",
+  "portfolio_metrics": {
+    "max_drawdown": -0.2008888252188369,
+    "modeled_fees": 45108.56737165792,
+    "sharpe": 0.833165527415279,
+    "total_return": 1.218073418826668
+  },
+  "selection_evidence": "DEVELOPMENT_EXPOSED",
+  "signal_session_count": 313,
+  "used_to_modify_pool": false
+}

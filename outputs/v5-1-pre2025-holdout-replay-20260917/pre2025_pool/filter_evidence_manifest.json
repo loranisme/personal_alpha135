@@ -1,0 +1,13 @@
+{
+  "artifact_type": "PRE2025_FILTER_EVIDENCE_MANIFEST",
+  "files": {
+    "filter_evidence/final_selected_factors.csv": "0436296f81bde5f06bebb9be95d58fcee6e0dff0eb355e6ddd3fe2b8874aaaae",
+    "filter_evidence/gate_funnel.csv": "672338ec8265e220ea895128f9bbecd16fa446591ab6d6e4069755e20790eccc",
+    "filter_evidence/gate_pass_factors.csv": "a59e7bff54ebad08d8c142a0b9b029ac0fcbe42222fc34131965757da123513f",
+    "filter_evidence/proposed_active_pool.json": "5c3133d0b00bc91fc84a80a7a2d8da2bfbdd495af5c69a981da8776daa22c6c5",
+    "filter_evidence/redundancy_deletions.csv": "e66b237a0ecdb997003393e116e2bbb14d1c72c95e10bc3483bf09f52fbe62a6",
+    "filter_evidence/run_status.json": "3679948cc9c7ad758f68060a627bcc27efaccc8154f69fb3f18ac3e2d2753ec9"
+  },
+  "gate_or_threshold_changed": false,
+  "holdout_labels_read": false
+}

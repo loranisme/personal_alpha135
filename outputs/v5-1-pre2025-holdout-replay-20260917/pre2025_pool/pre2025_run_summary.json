@@ -1,0 +1,19 @@
+{
+  "filter_run_id": "v5-1-filter-a5fcea4691b674f90905",
+  "gate_or_threshold_changed": false,
+  "gate_summary": {
+    "catalog_count": 135,
+    "gate_pass_count": 44,
+    "pool_cap_reject_count": 7,
+    "redundancy_reject_count": 22,
+    "selected_count": 15
+  },
+  "holdout_labels_read": false,
+  "independent_oos_claim_allowed": false,
+  "market_window_content_sha256": "171920631a76f32ebea4eda6e2e5d3488b5bf2359400f07ea10110cd7b5d70b7",
+  "pool_content_sha256": "d4b6eec5491894387700768ad63ea2e681dc63eea9e43f5a20c5892e950f5387",
+  "selection_evidence": "DEVELOPMENT_EXPOSED",
+  "status": "PRE2025_POOL_FROZEN",
+  "training_data_end": "2024-12-31",
+  "training_data_start": "2019-01-02"
+}

@@ -1,0 +1,12 @@
+{
+  "catalog_factor_version_count": 135,
+  "filter_run_id": "v5-1-filter-a5fcea4691b674f90905",
+  "historical_pit_verified": false,
+  "live_orders_submitted": 0,
+  "messages": [
+    "SAME_MECHANISM_INCLUDED"
+  ],
+  "selected_factor_count": 15,
+  "selection_evidence": "DEVELOPMENT_EXPOSED",
+  "status": "READY_FOR_HUMAN_REVIEW"
+}

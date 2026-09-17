@@ -1,0 +1,13 @@
+{
+  "artifact_type": "V5_1_FULL_HISTORY_CHAMPION_LOCK_MANIFEST",
+  "files": {
+    "champion.lock.json": "9dd20f875717a1aaa1b37d56de9b784306bd2753f4ab0de3f8c6ae4e81ee49d1"
+  },
+  "schema_version": 1,
+  "source_artifact_hashes": {
+    "comparison": "40f108d3ebb3eda443f626e3111e33f92cd99ff1c3b9b1c04d7173d5d63d79af",
+    "config": "f65e5ee4256167e95d6af9fb13d83ad081a428757980c79d8270c6540f0845da",
+    "decisions": "285e8134de548262bdb4102788e1dc80fcae4021fa79c8a425f2d9d15f431609",
+    "proposal": "05e4903a73a6c118608bb8d8d46410192874379866179d730ee98047095a9b11"
+  }
+}
