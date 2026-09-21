@@ -5,6 +5,10 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from typing import Any
 
+import pandas as pd
+
+from .sec_factor_inputs import verify_sec_input_evidence
+
 
 def build_registry_view(library: Mapping[str, Any], factor_ids: Sequence[str],
                         *, usage: str) -> list[dict[str, Any]]:
@@ -67,5 +71,56 @@ def compute_registry_factors(library: Mapping[str, Any], factor_ids: Sequence[st
             raise ValueError("FACTOR_INPUTS_MISSING:" + ",".join(sorted(missing)))
         output[factor["local_factor_id"]] = evaluate_factor(
             factor["expression"], fields, factor["settings"]
+        )
+    return output
+
+
+def compute_sec_registry_factors(
+    library: Mapping[str, Any], factor_ids: Sequence[str],
+    inputs: Mapping[str, pd.DataFrame], input_evidence: Mapping[str, Any],
+    usage: str = "diagnostic",
+) -> dict[str, pd.DataFrame]:
+    """Evaluate diagnostic SEC definitions against one hash-bound PIT input set."""
+    from .factors import evaluate_factor
+
+    if usage != "diagnostic":
+        raise ValueError("SEC_DIAGNOSTIC_ONLY")
+    verify_sec_input_evidence(inputs, input_evidence)
+    view = build_registry_view(library, factor_ids, usage="diagnostic")
+    required_evidence = (
+        "dataset_version", "processed_manifest_sha256", "canonical_mapping_hash",
+        "derived_field_catalog_hash", "security_mapping_hash", "pit_contract_hash",
+    )
+    output: dict[str, pd.DataFrame] = {}
+    for factor in view:
+        factor_id = factor["local_factor_id"]
+        if factor.get("provenance_kind") not in {"SEC_SOURCE_LINKED", "SEC_HYPOTHESIS_PROXY"}:
+            raise ValueError(f"SEC_PROVENANCE_INVALID:{factor_id}")
+        if factor.get("usage_tier") != "DIAGNOSTIC_ONLY":
+            raise ValueError(f"SEC_DIAGNOSTIC_ONLY:{factor_id}")
+        declared = factor.get("field_bindings")
+        if not isinstance(declared, Mapping) or set(declared) != set(inputs):
+            raise ValueError(f"SEC_INPUT_SET_MISMATCH:{factor_id}")
+        if factor["provenance_kind"] == "SEC_SOURCE_LINKED" and any(
+            track != "SEC_SOURCE_LINKED"
+            for track in input_evidence["binding_tracks_by_alias"].values()
+        ):
+            raise ValueError(f"SEC_STRICT_PROXY_INPUT:{factor_id}")
+        for alias, value in declared.items():
+            field, basis = input_evidence["field_basis_by_alias"][alias]
+            allowed = (f"{field}/{basis}", alias)
+            structured = {"canonical_field": field, "required_basis": basis}
+            if value not in allowed and value != structured:
+                raise ValueError(f"SEC_FACTOR_FIELD_BASIS_MISMATCH:{factor_id}:{alias}")
+        required_fields = factor.get("required_fields")
+        if required_fields is not None and set(required_fields) != set(inputs):
+            raise ValueError(f"SEC_INPUT_SET_MISMATCH:{factor_id}")
+        expected_evidence = factor.get("sec_evidence_hashes")
+        if not isinstance(expected_evidence, Mapping) or any(
+            expected_evidence.get(key) != input_evidence[key] for key in required_evidence
+        ):
+            raise ValueError(f"SEC_FACTOR_EVIDENCE_MISMATCH:{factor_id}")
+        output[factor_id] = evaluate_factor(
+            factor["expression"], inputs, factor["settings"]
         )
     return output
