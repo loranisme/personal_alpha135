@@ -7,11 +7,35 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from sec_edgar_pipeline.processing import _apply_identity_review_blocks, process_sec_raw
+from sec_edgar_pipeline.processing import _apply_identity_review_blocks, _load_ledger, process_sec_raw
 from sec_edgar_pipeline.raw_store import RawArtifact, store_raw_response
 
 
 FIXTURES = Path("data_pipelines/sec_edgar/tests/fixtures/sec")
+
+
+def test_verified_response_enters_processing_only_after_receipt(tmp_path):
+    content = b"{}"
+    store_raw_response(
+        tmp_path,
+        RawArtifact(
+            source_type="companyfacts",
+            cik="0000320193",
+            source_url="https://data.sec.gov/api/xbrl/companyfacts/CIK0000320193.json",
+            requested_at="2026-09-22T00:00:00Z",
+            first_seen_at="2026-09-22T00:05:00Z",
+            http_status=200,
+            size_bytes=len(content),
+            sha256=hashlib.sha256(content).hexdigest(),
+            object_path="",
+            pipeline_version="1",
+            receipt_time_verified=True,
+        ),
+        content,
+    )
+    with pytest.raises(ValueError, match="PROCESS_NO_RAW_ARTIFACTS_ASOF"):
+        _load_ledger(tmp_path, pd.Timestamp("2026-09-22T00:03:00Z"))
+    assert len(_load_ledger(tmp_path, pd.Timestamp("2026-09-22T00:06:00Z"))) == 1
 
 
 def _store(root: Path, source_type: str, cik: str, url: str, content: bytes) -> None:

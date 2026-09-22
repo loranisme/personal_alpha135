@@ -188,9 +188,10 @@ def _load_ledger(raw_root: Path, as_of: pd.Timestamp) -> list[RawArtifact]:
             raise ValueError(
                 f"PROCESS_RAW_HTTP_STATUS_NOT_OK:{artifact.source_type}:{artifact.cik}:{artifact.http_status}"
             )
-        if first_seen_at > requested_at:
-            raise ValueError(f"PROCESS_FIRST_SEEN_AFTER_REQUEST:{line_number}")
-        if requested_at <= as_of:
+        # A verified response is first observable when its body is received.
+        # The request timestamp may be earlier, and a content-addressed repeat
+        # may retain an even earlier first-seen timestamp.
+        if requested_at <= as_of and first_seen_at <= as_of:
             read_raw_artifact(raw_root, artifact)
             artifacts.append(artifact)
     if not artifacts:
