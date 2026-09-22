@@ -2,6 +2,27 @@ import json
 from us_equity_alpha.cli import main
 
 
+def test_expand_sec_cli_rejects_unapproved_release_without_source_read(tmp_path, capsys):
+    options = [
+        "--registry", "registry", "--brain-field-catalog", "brain-fields",
+        "--v4-library", "v4-library", "--v4-manifest", "v4-manifest",
+        "--v4-source-index", "v4-index", "--sec-manifest", "sec-manifest",
+        "--field-bindings", "bindings", "--proxy-rules", "proxy-rules",
+    ]
+    argv = ["expand-sec-fundamentals"]
+    for option, name in zip(options[::2], options[1::2]):
+        path = tmp_path / name
+        path.write_text('{"validation_status":"FAIL"}' if name == "sec-manifest" else "{}")
+        argv.extend([option, str(path)])
+    argv.extend(["--output", str(tmp_path / "output")])
+    code = main(argv)
+    payload = json.loads(capsys.readouterr().out)
+    assert code == 2
+    assert payload["status"] == "BLOCKED_INPUT"
+    assert payload["reason"] == "SEC_RELEASE_NOT_APPROVED"
+    assert not (tmp_path / "output").exists()
+
+
 def test_signal_missing_release_is_blocked_not_not_implemented(capsys):
     code=main(['signal','--release','/nonexistent/release','--mode','PAPER'])
     result=json.loads(capsys.readouterr().out)

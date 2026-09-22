@@ -196,6 +196,13 @@ def _parser() -> argparse.ArgumentParser:
     daily_select.add_argument("--as-of",required=True)
     daily_select.add_argument("--execution-helper",action="store_true")
     daily_select.add_argument("--positions",type=Path);daily_select.add_argument("--account",type=Path);daily_select.add_argument("--reference-prices",type=Path)
+    sec_expansion = subparsers.add_parser(
+        "expand-sec-fundamentals",
+        help="Build a detached, review-only SEC fundamental Alpha library release.",
+    )
+    for name in ("registry", "brain-field-catalog", "v4-library", "v4-manifest",
+                 "v4-source-index", "sec-manifest", "field-bindings", "proxy-rules", "output"):
+        sec_expansion.add_argument("--" + name, required=True, type=Path)
     return parser
 
 
@@ -283,6 +290,29 @@ def _environment_check(output: Path) -> dict:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
+    if args.command == "expand-sec-fundamentals":
+        from .sec_alpha_expansion_workflow import run_sec_alpha_expansion
+        try:
+            summary = run_sec_alpha_expansion(
+                registry_path=args.registry,
+                brain_field_catalog_path=args.brain_field_catalog,
+                v4_library_path=args.v4_library,
+                v4_manifest_path=args.v4_manifest,
+                v4_source_index_path=args.v4_source_index,
+                sec_manifest_path=args.sec_manifest,
+                field_bindings_path=args.field_bindings,
+                proxy_rules_path=args.proxy_rules,
+                output_dir=args.output,
+            )
+        except (OSError, ValueError) as exc:
+            reason = str(exc) if isinstance(exc, ValueError) else type(exc).__name__
+            _emit({"status": "BLOCKED_INPUT", "reason": reason})
+            return 2
+        except Exception as exc:
+            _emit({"status": "ENGINEERING_FAILURE", "reason": type(exc).__name__})
+            return 1
+        _emit(dict(summary))
+        return 0
     if args.command == 'policy-check':
         from .policy_v2 import load_policy
         from .runtime import save_result

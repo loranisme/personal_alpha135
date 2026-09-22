@@ -1,0 +1,4 @@
+security_id,ticker,exchange,security_type,domicile,as_of
+sec-aapl,AAPL,NASDAQ,COMMON_STOCK,US,2026-09-15T09:24:13Z
+sec-brka,BRK.A,NYSE,COMMON_STOCK,US,2026-09-15T09:24:13Z
+sec-brkb,BRK.B,NYSE,COMMON_STOCK,US,2026-09-15T09:24:13Z

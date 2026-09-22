@@ -1,0 +1,25 @@
+{
+  "cik": 320193,
+  "entityName": "Apple Inc.",
+  "facts": {
+    "us-gaap": {
+      "Assets": {
+        "label": "Assets",
+        "description": "Total assets",
+        "units": {
+          "USD": [
+            {
+              "end": "2025-09-27",
+              "val": 359241000000,
+              "accn": "0000320193-25-000079",
+              "fy": 2025,
+              "fp": "FY",
+              "form": "10-K",
+              "filed": "2025-10-31"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

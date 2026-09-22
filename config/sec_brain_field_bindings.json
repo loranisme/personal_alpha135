@@ -1,0 +1,272 @@
+[
+  {
+    "brain_field": "assets",
+    "canonical_field": "total_assets",
+    "required_basis": "INSTANT",
+    "semantic_grade": "SOURCE_LINKED_DIRECT",
+    "direction_or_sign_rule": "AS_REPORTED",
+    "allowed_track": "SEC_SOURCE_LINKED",
+    "mapping_evidence": "BRAIN Assets - Total; SEC us-gaap Assets, instant total assets."
+  },
+  {
+    "brain_field": "assets_curr",
+    "canonical_field": "current_assets",
+    "required_basis": "INSTANT",
+    "semantic_grade": "SOURCE_LINKED_DIRECT",
+    "direction_or_sign_rule": "AS_REPORTED",
+    "allowed_track": "SEC_SOURCE_LINKED",
+    "mapping_evidence": "BRAIN Current Assets - Total; SEC us-gaap AssetsCurrent, instant."
+  },
+  {
+    "brain_field": "liabilities",
+    "canonical_field": "total_liabilities",
+    "required_basis": "INSTANT",
+    "semantic_grade": "SOURCE_LINKED_DIRECT",
+    "direction_or_sign_rule": "AS_REPORTED",
+    "allowed_track": "SEC_SOURCE_LINKED",
+    "mapping_evidence": "BRAIN Liabilities - Total; SEC us-gaap Liabilities, instant."
+  },
+  {
+    "brain_field": "liabilities_curr",
+    "canonical_field": "current_liabilities",
+    "required_basis": "INSTANT",
+    "semantic_grade": "SOURCE_LINKED_DIRECT",
+    "direction_or_sign_rule": "AS_REPORTED",
+    "allowed_track": "SEC_SOURCE_LINKED",
+    "mapping_evidence": "BRAIN Current Liabilities - Total; SEC us-gaap LiabilitiesCurrent, instant."
+  },
+  {
+    "brain_field": "equity",
+    "canonical_field": "stockholders_equity",
+    "required_basis": "INSTANT",
+    "semantic_grade": "HYPOTHESIS_PROXY",
+    "direction_or_sign_rule": "SIGNED",
+    "allowed_track": "SEC_HYPOTHESIS_PROXY",
+    "mapping_evidence": "BRAIN Common/Ordinary Equity - Total may differ from SEC stockholders equity excluding NCI; proxy only."
+  },
+  {
+    "brain_field": "cash",
+    "canonical_field": "cash_and_cash_equivalents",
+    "required_basis": "INSTANT",
+    "semantic_grade": "HYPOTHESIS_PROXY",
+    "direction_or_sign_rule": "AS_REPORTED",
+    "allowed_track": "SEC_HYPOTHESIS_PROXY",
+    "mapping_evidence": "BRAIN Cash may include items beyond SEC cash and cash equivalents; proxy only."
+  },
+  {
+    "brain_field": "inventory",
+    "canonical_field": "inventory",
+    "required_basis": "INSTANT",
+    "semantic_grade": "HYPOTHESIS_PROXY",
+    "direction_or_sign_rule": "AS_REPORTED",
+    "allowed_track": "SEC_HYPOTHESIS_PROXY",
+    "mapping_evidence": "BRAIN Inventories - Total; SEC us-gaap InventoryNet, instant net inventory; verify vendor gross/net parity before strict admission."
+  },
+  {
+    "brain_field": "receivable",
+    "canonical_field": "accounts_receivable",
+    "required_basis": "INSTANT",
+    "semantic_grade": "HYPOTHESIS_PROXY",
+    "direction_or_sign_rule": "AS_REPORTED",
+    "allowed_track": "SEC_HYPOTHESIS_PROXY",
+    "mapping_evidence": "BRAIN Receivables - Total may include noncurrent and nontrade items; SEC current net receivables is a proxy."
+  },
+  {
+    "brain_field": "goodwill",
+    "canonical_field": "goodwill",
+    "required_basis": "INSTANT",
+    "semantic_grade": "SOURCE_LINKED_DIRECT",
+    "direction_or_sign_rule": "AS_REPORTED",
+    "allowed_track": "SEC_SOURCE_LINKED",
+    "mapping_evidence": "BRAIN Goodwill (net); SEC us-gaap Goodwill, instant."
+  },
+  {
+    "brain_field": "debt",
+    "canonical_field": "total_debt",
+    "required_basis": "INSTANT",
+    "semantic_grade": "HYPOTHESIS_PROXY",
+    "direction_or_sign_rule": "POSITIVE_OBLIGATION",
+    "allowed_track": "SEC_HYPOTHESIS_PROXY",
+    "mapping_evidence": "Reviewed SEC short-term plus current and noncurrent long-term debt; BRAIN Debt definition needs source parity review."
+  },
+  {
+    "brain_field": "sales",
+    "canonical_field": "revenue",
+    "required_basis": "TTM",
+    "semantic_grade": "HYPOTHESIS_PROXY",
+    "direction_or_sign_rule": "AS_REPORTED",
+    "allowed_track": "SEC_HYPOTHESIS_PROXY",
+    "mapping_evidence": "BRAIN Sales/Turnover (Net); fixed SEC TTM revenue from four eligible quarters; period parity must be checked."
+  },
+  {
+    "brain_field": "revenue",
+    "canonical_field": "revenue",
+    "required_basis": "TTM",
+    "semantic_grade": "HYPOTHESIS_PROXY",
+    "direction_or_sign_rule": "AS_REPORTED",
+    "allowed_track": "SEC_HYPOTHESIS_PROXY",
+    "mapping_evidence": "BRAIN Revenue - Total; fixed SEC TTM revenue from four eligible quarters; period parity must be checked."
+  },
+  {
+    "brain_field": "operating_income",
+    "canonical_field": "operating_income",
+    "required_basis": "QUARTERLY_DISCRETE",
+    "semantic_grade": "SOURCE_LINKED_DIRECT",
+    "direction_or_sign_rule": "AS_REPORTED",
+    "allowed_track": "SEC_SOURCE_LINKED",
+    "mapping_evidence": "BRAIN Operating Income After Depreciation - Quarterly; SEC us-gaap OperatingIncomeLoss discrete quarter."
+  },
+  {
+    "brain_field": "income",
+    "canonical_field": "net_income",
+    "required_basis": "TTM",
+    "semantic_grade": "HYPOTHESIS_PROXY",
+    "direction_or_sign_rule": "SIGNED",
+    "allowed_track": "SEC_HYPOTHESIS_PROXY",
+    "mapping_evidence": "BRAIN Net Income may use a different period or attribution than SEC TTM NetIncomeLoss; proxy only."
+  },
+  {
+    "brain_field": "cashflow_op",
+    "canonical_field": "operating_cash_flow",
+    "required_basis": "TTM",
+    "semantic_grade": "HYPOTHESIS_PROXY",
+    "direction_or_sign_rule": "SIGNED",
+    "allowed_track": "SEC_HYPOTHESIS_PROXY",
+    "mapping_evidence": "BRAIN Operating Activities - Net Cash Flow does not specify period; SEC TTM operating cash flow is a proxy."
+  },
+  {
+    "brain_field": "cashflow_dividends",
+    "canonical_field": "dividends_paid",
+    "required_basis": "TTM",
+    "semantic_grade": "HYPOTHESIS_PROXY",
+    "direction_or_sign_rule": "POSITIVE_OUTFLOW",
+    "allowed_track": "SEC_HYPOTHESIS_PROXY",
+    "mapping_evidence": "BRAIN Cash Dividends (Cash Flow) versus SEC positive cash outflow magnitude; proxy pending sign and period parity."
+  },
+  {
+    "brain_field": "income_taxes_paid_total",
+    "canonical_field": "income_taxes_paid",
+    "required_basis": "TTM",
+    "semantic_grade": "HYPOTHESIS_PROXY",
+    "direction_or_sign_rule": "POSITIVE_OUTFLOW",
+    "allowed_track": "SEC_HYPOTHESIS_PROXY",
+    "mapping_evidence": "BRAIN total taxes paid; SEC IncomeTaxesPaidNet positive cash outflow may be net of refunds; proxy."
+  },
+  {
+    "brain_field": "deferred_tax_assets_net_value",
+    "canonical_field": "deferred_tax_assets",
+    "required_basis": "INSTANT",
+    "semantic_grade": "SOURCE_LINKED_DIRECT",
+    "direction_or_sign_rule": "AS_REPORTED",
+    "allowed_track": "SEC_SOURCE_LINKED",
+    "mapping_evidence": "BRAIN Net value of deferred tax assets; SEC DeferredTaxAssetsNet, instant."
+  },
+  {
+    "brain_field": "deferred_tax_liabilities_total_4",
+    "canonical_field": "deferred_tax_liabilities",
+    "required_basis": "INSTANT",
+    "semantic_grade": "SOURCE_LINKED_DIRECT",
+    "direction_or_sign_rule": "AS_REPORTED",
+    "allowed_track": "SEC_SOURCE_LINKED",
+    "mapping_evidence": "BRAIN Total amount of deferred tax liabilities; SEC DeferredTaxLiabilities, instant."
+  },
+  {
+    "brain_field": "deferred_tax_assets_valuation_allowance_value",
+    "canonical_field": "deferred_tax_valuation_allowance",
+    "required_basis": "INSTANT",
+    "semantic_grade": "SOURCE_LINKED_DIRECT",
+    "direction_or_sign_rule": "AS_REPORTED",
+    "allowed_track": "SEC_SOURCE_LINKED",
+    "mapping_evidence": "BRAIN Valuation allowance for deferred tax assets; SEC DeferredTaxAssetsValuationAllowance, instant."
+  },
+  {
+    "brain_field": "working_capital",
+    "canonical_field": "working_capital",
+    "required_basis": "INSTANT",
+    "semantic_grade": "SOURCE_LINKED_DERIVED",
+    "direction_or_sign_rule": "DERIVED_FORMULA",
+    "allowed_track": "SEC_SOURCE_LINKED",
+    "mapping_evidence": "BRAIN Working Capital (Balance Sheet); SEC current assets minus current liabilities at one instant."
+  },
+  {
+    "brain_field": "ebit",
+    "canonical_field": "ebit",
+    "required_basis": "TTM",
+    "semantic_grade": "HYPOTHESIS_PROXY",
+    "direction_or_sign_rule": "DERIVED_FORMULA",
+    "allowed_track": "SEC_HYPOTHESIS_PROXY",
+    "mapping_evidence": "SEC EBIT uses net income plus tax and interest expense; vendor EBIT adjustment policy may differ; proxy."
+  },
+  {
+    "brain_field": "ebitda",
+    "canonical_field": "ebitda",
+    "required_basis": "TTM",
+    "semantic_grade": "HYPOTHESIS_PROXY",
+    "direction_or_sign_rule": "DERIVED_FORMULA",
+    "allowed_track": "SEC_HYPOTHESIS_PROXY",
+    "mapping_evidence": "SEC EBITDA uses derived EBIT plus depreciation and amortization; vendor EBITDA adjustment policy may differ; proxy."
+  },
+  {
+    "brain_field": "return_assets",
+    "canonical_field": "roa",
+    "required_basis": "TTM",
+    "semantic_grade": "HYPOTHESIS_PROXY",
+    "direction_or_sign_rule": "DERIVED_FORMULA",
+    "allowed_track": "SEC_HYPOTHESIS_PROXY",
+    "mapping_evidence": "SEC TTM net income over average assets; BRAIN Return on Assets period and denominator are not documented as identical."
+  },
+  {
+    "brain_field": "return_equity",
+    "canonical_field": "roe",
+    "required_basis": "TTM",
+    "semantic_grade": "HYPOTHESIS_PROXY",
+    "direction_or_sign_rule": "DERIVED_FORMULA",
+    "allowed_track": "SEC_HYPOTHESIS_PROXY",
+    "mapping_evidence": "SEC TTM net income over average equity; BRAIN Return on Equity period and denominator are not documented as identical."
+  },
+  {
+    "brain_field": "inventory_turnover",
+    "canonical_field": "inventory_turnover",
+    "required_basis": "TTM",
+    "semantic_grade": "HYPOTHESIS_PROXY",
+    "direction_or_sign_rule": "DERIVED_FORMULA",
+    "allowed_track": "SEC_HYPOTHESIS_PROXY",
+    "mapping_evidence": "SEC revenue less gross profit over average inventory; BRAIN turnover convention may differ."
+  },
+  {
+    "brain_field": "bookvalue_ps",
+    "canonical_field": "book_value_per_share",
+    "required_basis": "INSTANT",
+    "semantic_grade": "HYPOTHESIS_PROXY",
+    "direction_or_sign_rule": "DERIVED_FORMULA",
+    "allowed_track": "SEC_HYPOTHESIS_PROXY",
+    "mapping_evidence": "SEC equity over SEC cover shares; share timing and class differ from BRAIN book value per share."
+  },
+  {
+    "brain_field": "enterprise_value",
+    "canonical_field": "enterprise_value_sec_proxy",
+    "required_basis": "DAILY_PROXY",
+    "semantic_grade": "HYPOTHESIS_PROXY",
+    "direction_or_sign_rule": "DERIVED_FORMULA",
+    "allowed_track": "SEC_HYPOTHESIS_PROXY",
+    "mapping_evidence": "SEC cover shares times raw close plus debt less cash; proxy for BRAIN Enterprise Value."
+  },
+  {
+    "brain_field": "cap",
+    "canonical_field": "market_cap_sec_proxy",
+    "required_basis": "DAILY_PROXY",
+    "semantic_grade": "HYPOTHESIS_PROXY",
+    "direction_or_sign_rule": "POSITIVE",
+    "allowed_track": "SEC_HYPOTHESIS_PROXY",
+    "mapping_evidence": "SEC cover shares times visible raw close; not parity with BRAIN daily market cap in millions."
+  },
+  {
+    "brain_field": "sharesout",
+    "canonical_field": "shares_outstanding_sec",
+    "required_basis": "INSTANT",
+    "semantic_grade": "HYPOTHESIS_PROXY",
+    "direction_or_sign_rule": "POSITIVE",
+    "allowed_track": "SEC_HYPOTHESIS_PROXY",
+    "mapping_evidence": "SEC cover shares; not parity with BRAIN daily outstanding shares in millions."
+  }
+]

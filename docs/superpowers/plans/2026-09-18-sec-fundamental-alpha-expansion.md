@@ -727,7 +727,7 @@ private/project_factor_library/reconstruction-v4/manifest.json
 private/project_factor_library/reconstruction-v4/project_factor_library.json
 private/project_factor_library/reconstruction-v4/source_reconstruction_index.csv
 private/sec_edgar/releases/SEC_PIT_FUNDAMENTALS_V1/processed_manifest.json
-private/runs/t1-live-import-20260907-v5/alpha_registry.json
+private/runs/brain-sync-20260907-live/alpha_export.json
 private/local_snapshots/wq_usa_top3000_delay1_data_fields.json
 config/sec_brain_field_bindings.json
 config/sec_proxy_hypotheses.json
@@ -740,7 +740,7 @@ The ledger lives inside the new output directory after the atomic build and is i
 Run:
 
 ```bash
-PYTHONPATH=data_pipelines/sec_edgar/src:src .venv/bin/python scripts/run_sec_alpha_expansion.py --registry private/runs/t1-live-import-20260907-v5/alpha_registry.json --brain-field-catalog private/local_snapshots/wq_usa_top3000_delay1_data_fields.json --v4-library private/project_factor_library/reconstruction-v4/project_factor_library.json --v4-manifest private/project_factor_library/reconstruction-v4/manifest.json --v4-source-index private/project_factor_library/reconstruction-v4/source_reconstruction_index.csv --sec-manifest private/sec_edgar/releases/SEC_PIT_FUNDAMENTALS_V1/processed_manifest.json --field-bindings config/sec_brain_field_bindings.json --proxy-rules config/sec_proxy_hypotheses.json --output private/project_factor_library/EXPANDED_ALPHA_LIBRARY_V1
+PYTHONPATH=data_pipelines/sec_edgar/src:src .venv/bin/python scripts/run_sec_alpha_expansion.py --registry private/runs/brain-sync-20260907-live/alpha_export.json --brain-field-catalog private/local_snapshots/wq_usa_top3000_delay1_data_fields.json --v4-library private/project_factor_library/reconstruction-v4/project_factor_library.json --v4-manifest private/project_factor_library/reconstruction-v4/manifest.json --v4-source-index private/project_factor_library/reconstruction-v4/source_reconstruction_index.csv --sec-manifest private/sec_edgar/releases/SEC_PIT_FUNDAMENTALS_V1/processed_manifest.json --field-bindings config/sec_brain_field_bindings.json --proxy-rules config/sec_proxy_hypotheses.json --output private/project_factor_library/EXPANDED_ALPHA_LIBRARY_V1
 ```
 
 Expected: the command completes only when all input and output hashes verify. A zero-new-factor outcome is allowed if the reports prove why every candidate was blocked or deduplicated.

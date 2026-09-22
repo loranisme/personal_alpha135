@@ -1,0 +1,123 @@
+{
+  "schema_version": 1,
+  "catalog_id": "SEC_DERIVED_FIELDS_V1",
+  "definitions": {
+    "total_debt": {
+      "formula": "short_term_debt + long_term_debt_current + long_term_debt_noncurrent",
+      "required_inputs": ["short_term_debt", "long_term_debt_current", "long_term_debt_noncurrent"],
+      "required_basis": {"short_term_debt": "INSTANT", "long_term_debt_current": "INSTANT", "long_term_debt_noncurrent": "INSTANT"},
+      "unit_rule": "all inputs and output use the same reporting currency",
+      "sign_convention": "debt balances are positive obligations",
+      "missing_value_rule": "missing if any required input is missing; never substitute zero",
+      "semantic_grade": "SOURCE_LINKED_DERIVED"
+    },
+    "working_capital": {
+      "formula": "current_assets - current_liabilities",
+      "required_inputs": ["current_assets", "current_liabilities"],
+      "required_basis": {"current_assets": "INSTANT", "current_liabilities": "INSTANT"},
+      "unit_rule": "both inputs and output use the same reporting currency",
+      "sign_convention": "assets and liabilities are positive balances",
+      "missing_value_rule": "missing if either required input is missing",
+      "semantic_grade": "SOURCE_LINKED_DERIVED"
+    },
+    "free_cash_flow": {
+      "formula": "operating_cash_flow - capital_expenditure",
+      "required_inputs": ["operating_cash_flow", "capital_expenditure"],
+      "required_basis": {"operating_cash_flow": "TTM", "capital_expenditure": "TTM"},
+      "unit_rule": "both inputs and output use the same reporting currency",
+      "sign_convention": "capital_expenditure is a positive cash outflow magnitude",
+      "missing_value_rule": "missing if either required input is missing",
+      "semantic_grade": "SOURCE_LINKED_DERIVED"
+    },
+    "ebit": {
+      "formula": "net_income + income_tax_expense + interest_expense",
+      "required_inputs": ["net_income", "income_tax_expense", "interest_expense"],
+      "required_basis": {"net_income": "TTM", "income_tax_expense": "TTM", "interest_expense": "TTM"},
+      "unit_rule": "all inputs and output use the same reporting currency",
+      "sign_convention": "expense inputs are positive add-backs",
+      "missing_value_rule": "missing if any required input is missing",
+      "semantic_grade": "SOURCE_LINKED_DERIVED"
+    },
+    "ebitda": {
+      "formula": "ebit + depreciation_and_amortization",
+      "required_inputs": ["ebit", "depreciation_and_amortization"],
+      "required_basis": {"ebit": "TTM", "depreciation_and_amortization": "TTM"},
+      "unit_rule": "both inputs and output use the same reporting currency",
+      "sign_convention": "depreciation_and_amortization is a positive add-back",
+      "missing_value_rule": "missing if either required input is missing",
+      "semantic_grade": "SOURCE_LINKED_DERIVED"
+    },
+    "roa": {
+      "formula": "net_income / mean(total_assets, lag(total_assets, 1 fiscal year))",
+      "required_inputs": ["net_income", "total_assets"],
+      "required_basis": {"net_income": "TTM", "total_assets": "INSTANT"},
+      "unit_rule": "numerator and denominator use the same reporting currency; output is a ratio",
+      "sign_convention": "signed net income divided by positive average assets",
+      "missing_value_rule": "missing if either asset endpoint or net income is missing, or average assets is zero",
+      "semantic_grade": "SOURCE_LINKED_DERIVED"
+    },
+    "roe": {
+      "formula": "net_income / mean(stockholders_equity, lag(stockholders_equity, 1 fiscal year))",
+      "required_inputs": ["net_income", "stockholders_equity"],
+      "required_basis": {"net_income": "TTM", "stockholders_equity": "INSTANT"},
+      "unit_rule": "numerator and denominator use the same reporting currency; output is a ratio",
+      "sign_convention": "signed net income divided by signed average equity",
+      "missing_value_rule": "missing if either equity endpoint or net income is missing, or average equity is zero",
+      "semantic_grade": "SOURCE_LINKED_DERIVED"
+    },
+    "book_value_per_share": {
+      "formula": "stockholders_equity / shares_outstanding_sec",
+      "required_inputs": ["stockholders_equity", "shares_outstanding_sec"],
+      "required_basis": {"stockholders_equity": "INSTANT", "shares_outstanding_sec": "INSTANT"},
+      "unit_rule": "reporting currency per share",
+      "sign_convention": "signed equity divided by positive shares",
+      "missing_value_rule": "missing if either input is missing or shares are non-positive",
+      "semantic_grade": "HYPOTHESIS_PROXY"
+    },
+    "asset_growth": {
+      "formula": "total_assets / lag(total_assets, 1 fiscal year) - 1",
+      "required_inputs": ["total_assets"],
+      "required_basis": {"total_assets": "INSTANT"},
+      "unit_rule": "same-currency values produce a ratio",
+      "sign_convention": "positive means assets increased",
+      "missing_value_rule": "missing if either endpoint is missing or lagged assets are zero",
+      "semantic_grade": "SOURCE_LINKED_DERIVED"
+    },
+    "revenue_growth": {
+      "formula": "revenue / lag(revenue, 1 fiscal year) - 1",
+      "required_inputs": ["revenue"],
+      "required_basis": {"revenue": "TTM"},
+      "unit_rule": "same-currency values produce a ratio",
+      "sign_convention": "positive means TTM revenue increased",
+      "missing_value_rule": "missing if either endpoint is missing or lagged revenue is zero",
+      "semantic_grade": "SOURCE_LINKED_DERIVED"
+    },
+    "inventory_turnover": {
+      "formula": "(revenue - gross_profit) / mean(inventory, lag(inventory, 1 fiscal year))",
+      "required_inputs": ["revenue", "gross_profit", "inventory"],
+      "required_basis": {"revenue": "TTM", "gross_profit": "TTM", "inventory": "INSTANT"},
+      "unit_rule": "same-currency numerator and denominator produce a ratio",
+      "sign_convention": "revenue minus gross profit represents positive cost of goods sold",
+      "missing_value_rule": "missing if any flow or inventory endpoint is missing, or average inventory is zero",
+      "semantic_grade": "SOURCE_LINKED_DERIVED"
+    },
+    "market_cap_sec_proxy": {
+      "formula": "shares_outstanding_sec * raw_close",
+      "required_inputs": ["shares_outstanding_sec", "raw_close"],
+      "required_basis": {"shares_outstanding_sec": "INSTANT", "raw_close": "DAILY_RAW_CLOSE"},
+      "unit_rule": "shares multiplied by same-day unadjusted close produces reporting currency",
+      "sign_convention": "shares and price must be positive",
+      "missing_value_rule": "missing if either input is missing or non-positive",
+      "semantic_grade": "HYPOTHESIS_PROXY"
+    },
+    "enterprise_value_sec_proxy": {
+      "formula": "market_cap_sec_proxy + total_debt - cash_and_cash_equivalents",
+      "required_inputs": ["market_cap_sec_proxy", "total_debt", "cash_and_cash_equivalents"],
+      "required_basis": {"market_cap_sec_proxy": "DAILY_PROXY", "total_debt": "INSTANT", "cash_and_cash_equivalents": "INSTANT"},
+      "unit_rule": "all inputs and output use the same reporting currency",
+      "sign_convention": "debt is added and cash is subtracted",
+      "missing_value_rule": "missing if any required input is missing",
+      "semantic_grade": "HYPOTHESIS_PROXY"
+    }
+  }
+}

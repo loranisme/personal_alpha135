@@ -1,0 +1,16 @@
+{
+  "cik": "0000320193",
+  "name": "Apple Inc.",
+  "sic": "3571",
+  "tickers": ["AAPL"],
+  "exchanges": ["Nasdaq"],
+  "filings": {
+    "recent": {
+      "accessionNumber": ["0000320193-25-000079"],
+      "filingDate": ["2025-10-31"],
+      "acceptanceDateTime": ["2025-10-31T06:01:26.000Z"],
+      "form": ["10-K"]
+    },
+    "files": []
+  }
+}

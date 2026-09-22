@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "provider": "SEC_EDGAR_COMPANYFACTS",
+  "supported_namespaces": [
+    "us-gaap",
+    "dei"
+  ],
+  "supported_forms": [
+    "10-K",
+    "10-K/A",
+    "10-Q",
+    "10-Q/A"
+  ],
+  "availability_buffer_minutes": 10,
+  "exchange_calendar": "XNYS",
+  "historical_signal_cutoff": "16:00 America/New_York",
+  "maximum_requests_per_second": 5.0,
+  "start_date": "2019-01-01",
+  "allowed_security_types": [
+    "COMMON_STOCK",
+    "REIT"
+  ],
+  "domicile": "US",
+  "taxonomy_policy": "STANDARD_ENTITY_WIDE_ONLY",
+  "historical_availability_mode": "ACCEPTANCE_PLUS_TEN_MINUTES",
+  "forward_availability_mode": "MAX_HISTORICAL_AND_FIRST_SEEN",
+  "raw_store_mode": "CONTENT_ADDRESSED_APPEND_ONLY",
+  "historical_pit_universe_verified": false,
+  "selection_evidence": "DEVELOPMENT_EXPOSED"
+}

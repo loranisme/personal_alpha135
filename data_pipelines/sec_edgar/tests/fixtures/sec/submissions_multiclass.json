@@ -1,0 +1,12 @@
+{
+  "cik": "0001067983",
+  "entityType": "operating",
+  "tickers": ["BRK-A", "BRK-B"],
+  "exchanges": ["NYSE", "NYSE"],
+  "filings": {
+    "recent": {
+      "form": ["10-K", "10-Q"]
+    }
+  },
+  "_raw_source_hash": "sha256:berkshire-submissions-fixture"
+}
