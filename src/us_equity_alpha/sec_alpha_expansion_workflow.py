@@ -17,7 +17,10 @@ import pandas as pd
 
 from .expanded_library import assemble_expanded_library, deduplicate_sec_candidates
 from .factors import FUNCTIONS
-from .sec_deferred_audit import audit_fundamental_deferred_sources
+from .sec_deferred_audit import (
+    audit_fundamental_deferred_sources,
+    normalized_registry_sources,
+)
 from .sec_factor_inputs import load_sec_factor_inputs
 from .sec_factor_verification import verify_sec_factor
 from .sec_field_mapping import load_sec_field_bindings
@@ -91,12 +94,10 @@ def _catalog(provider: SecFundamentalProvider) -> pd.DataFrame:
 
 
 def _source_rows(registry: Mapping[str, Any]) -> dict[str, Mapping[str, Any]]:
-    rows = registry.get("records")
-    if not isinstance(rows, list) or any(not isinstance(row, Mapping) for row in rows):
-        raise ValueError("REGISTRY_RECORDS_INVALID")
-    result = {row.get("id"): row for row in rows}
-    if len(result) != 886 or None in result:
-        raise ValueError("REGISTRY_SOURCE_IDS_INVALID")
+    try:
+        result = normalized_registry_sources(registry)
+    except ValueError as exc:
+        raise ValueError("REGISTRY_SOURCE_IDS_INVALID") from exc
     return result
 
 

@@ -6,7 +6,10 @@ import pandas as pd
 import pytest
 
 from us_equity_alpha.sec_field_mapping import load_sec_field_bindings
-from us_equity_alpha.sec_deferred_audit import audit_fundamental_deferred_sources
+from us_equity_alpha.sec_deferred_audit import (
+    audit_fundamental_deferred_sources,
+    normalized_registry_sources,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -56,3 +59,30 @@ def test_candidate_track_does_not_imply_reconstruction_admission(frozen_inputs):
     candidates = result[result.candidate_track.eq("SEC_SOURCE_LINKED")]
     assert not candidates.empty
     assert all("FORMULA_AND_PIT_REVIEW_PENDING" in reasons for reasons in candidates.blocking_reasons)
+
+
+def test_t1_registry_envelopes_resolve_to_raw_brain_sources():
+    records = [
+        {
+            "alpha_id": f"a{i}",
+            "settings": {"delay": 1},
+            "raw": {"id": f"a{i}", "regular": {"code": f"rank(x)+{i}"}},
+        }
+        for i in range(886)
+    ]
+
+    result = normalized_registry_sources({"records": records})
+
+    assert len(result) == 886
+    assert result["a0"]["regular"]["code"] == "rank(x)+0"
+
+
+def test_t1_registry_envelope_rejects_raw_id_mismatch():
+    records = [
+        {"alpha_id": f"a{i}", "raw": {"id": f"a{i}"}}
+        for i in range(886)
+    ]
+    records[1]["raw"]["id"] = "different"
+
+    with pytest.raises(ValueError, match="source_ids"):
+        normalized_registry_sources({"records": records})

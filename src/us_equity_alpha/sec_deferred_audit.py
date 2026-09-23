@@ -19,17 +19,48 @@ def _hash_expression(expression: str) -> str:
     return hashlib.sha256(json.dumps(expression, ensure_ascii=False, separators=(",", ":")).encode()).hexdigest()
 
 
+def normalized_registry_sources(registry: Mapping[str, Any]) -> dict[str, Mapping[str, Any]]:
+    """Return BRAIN source payloads from either export or T1 registry envelopes."""
+
+    records = registry.get("records")
+    if not isinstance(records, list) or len(records) != 886:
+        raise ValueError("INPUT_VERSION_MISMATCH:registry")
+    result: dict[str, Mapping[str, Any]] = {}
+    for record in records:
+        if not isinstance(record, Mapping):
+            raise ValueError("INPUT_VERSION_MISMATCH:source_ids")
+        direct_id = record.get("id")
+        envelope_id = record.get("alpha_id")
+        raw = record.get("raw")
+        if isinstance(direct_id, str) and direct_id:
+            source = record
+            source_id = direct_id
+        elif (
+            isinstance(envelope_id, str)
+            and envelope_id
+            and isinstance(raw, Mapping)
+            and raw.get("id") == envelope_id
+        ):
+            source = raw
+            source_id = envelope_id
+        else:
+            raise ValueError("INPUT_VERSION_MISMATCH:source_ids")
+        if source_id in result:
+            raise ValueError("INPUT_VERSION_MISMATCH:source_ids")
+        result[source_id] = source
+    if len(result) != 886:
+        raise ValueError("INPUT_VERSION_MISMATCH:source_ids")
+    return result
+
+
 def audit_fundamental_deferred_sources(
     registry: Mapping[str, Any], v4_source_index: pd.DataFrame,
     brain_field_catalog: Sequence[Mapping[str, Any]], bindings: Mapping[str, SecFieldBinding],
 ) -> pd.DataFrame:
     """Classify every V4 deferred source using its missing fields and saved category."""
-    records = registry.get("records")
-    if not isinstance(records, list) or len(records) != 886 or registry.get("sync_scope_complete") is not True:
+    if registry.get("sync_scope_complete") is not True:
         raise ValueError("INPUT_VERSION_MISMATCH:registry")
-    source_by_id = {r.get("id"): r for r in records if isinstance(r, dict)}
-    if len(source_by_id) != 886 or None in source_by_id:
-        raise ValueError("INPUT_VERSION_MISMATCH:source_ids")
+    source_by_id = normalized_registry_sources(registry)
     required_columns = {"source_alpha_id", "decision", "missing_fields"}
     if not required_columns.issubset(v4_source_index.columns):
         raise ValueError("INPUT_VERSION_MISMATCH:v4_columns")
