@@ -224,7 +224,22 @@ def run_sec_alpha_expansion(
                 or input_hashes[name] != v4_manifest[relative]):
             raise ValueError("V4_PINNED_FILE_MISMATCH:" + name)
     catalog = _catalog(provider)
-    bindings = load_sec_field_bindings(paths["field_bindings"], catalog)
+    configured_bindings = _json(paths["field_bindings"])
+    if not isinstance(configured_bindings, list):
+        raise ValueError("SEC_BINDINGS_SCHEMA_INVALID")
+    release_fields = set(catalog.canonical_field.astype(str))
+    unavailable_configured_fields = sorted({
+        str(row.get("canonical_field"))
+        for row in configured_bindings
+        if isinstance(row, Mapping)
+        and isinstance(row.get("canonical_field"), str)
+        and row["canonical_field"] not in release_fields
+    })
+    bindings = load_sec_field_bindings(
+        paths["field_bindings"],
+        catalog,
+        allow_unavailable_release_derived=True,
+    )
     proxy_rules = load_proxy_hypotheses(paths["proxy_rules"], bindings)
     registry = _json(paths["registry"])
     fields = _json(paths["brain_field_catalog"])
@@ -287,6 +302,7 @@ def run_sec_alpha_expansion(
         "new_unique_formulas": len(unique),
         "final_expanded_unique_formula_count": len(expanded["factors"]),
         "verification_failure_counts": dict(sorted(reasons.items())),
+        "unavailable_configured_canonical_fields": unavailable_configured_fields,
         "demand_split": dict(sorted(demand.demand_class.value_counts().to_dict().items())),
         "usage_tier": "DIAGNOSTIC_ONLY", "filter_executed": False,
         "current_library_pointer_updated": False, "live_orders_submitted": 0,

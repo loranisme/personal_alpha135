@@ -45,6 +45,39 @@ def test_binding_rejects_unknown_basis_duplicate_and_undocumented_sign(tmp_path)
             _load(tmp_path, rows)
 
 
+def test_expansion_can_defer_price_dependent_fields_absent_from_release(tmp_path):
+    row = _row(
+        brain_field="enterprise_value",
+        canonical_field="enterprise_value_sec_proxy",
+        required_basis="DAILY_PROXY",
+        semantic_grade="HYPOTHESIS_PROXY",
+        allowed_track="SEC_HYPOTHESIS_PROXY",
+        direction_or_sign_rule="DERIVED_FORMULA",
+    )
+    path = tmp_path / "bindings.json"
+    path.write_text(json.dumps([row]))
+
+    result = load_sec_field_bindings(
+        path,
+        _catalog(),
+        allow_unavailable_release_derived=True,
+    )
+
+    assert result == {}
+
+
+def test_expansion_still_rejects_unknown_nonoptional_field(tmp_path):
+    path = tmp_path / "bindings.json"
+    path.write_text(json.dumps([_row(canonical_field="typo_assets")]))
+
+    with pytest.raises(ValueError, match="SEC_BINDING_UNKNOWN_FIELD"):
+        load_sec_field_bindings(
+            path,
+            _catalog(),
+            allow_unavailable_release_derived=True,
+        )
+
+
 def test_shares_and_cap_are_proxy_only(tmp_path):
     for brain, canonical, basis in (("sharesout", "shares_outstanding_sec", "INSTANT"),
                                     ("cap", "market_cap_sec_proxy", "DAILY_PROXY")):

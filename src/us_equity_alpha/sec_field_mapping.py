@@ -26,9 +26,15 @@ _SIGNS = {"AS_REPORTED", "POSITIVE", "POSITIVE_OUTFLOW", "SIGNED",
           "POSITIVE_OBLIGATION", "DERIVED_FORMULA"}
 _PROXY_ONLY = {"sharesout", "cap", "shares_outstanding_sec", "market_cap_sec_proxy",
                "enterprise_value_sec_proxy", "book_value_per_share"}
+_OPTIONAL_RELEASE_DERIVED = {"market_cap_sec_proxy", "enterprise_value_sec_proxy"}
 
 
-def load_sec_field_bindings(path: Path | str, sec_field_catalog: pd.DataFrame) -> dict[str, SecFieldBinding]:
+def load_sec_field_bindings(
+    path: Path | str,
+    sec_field_catalog: pd.DataFrame,
+    *,
+    allow_unavailable_release_derived: bool = False,
+) -> dict[str, SecFieldBinding]:
     """Validate explicit bindings against the combined direct and derived SEC catalog.
 
     Direct duration concepts support fixed TTM assembly from discrete quarters;
@@ -60,6 +66,14 @@ def load_sec_field_bindings(path: Path | str, sec_field_catalog: pd.DataFrame) -
             raise ValueError("SEC_BINDING_SIGN_UNDOCUMENTED:" + binding.brain_field)
         candidates = [r for r in catalog if r["canonical_field"] == binding.canonical_field]
         if not candidates:
+            if (
+                allow_unavailable_release_derived
+                and binding.canonical_field in _OPTIONAL_RELEASE_DERIVED
+            ):
+                # These fields require a separately pinned market-price
+                # snapshot.  A fundamentals-only release keeps the BRAIN
+                # sources deferred instead of blocking all other bindings.
+                continue
             raise ValueError("SEC_BINDING_UNKNOWN_FIELD:" + binding.canonical_field)
         compatible = [r for r in candidates if r["basis"] == binding.required_basis or (
             binding.required_basis in {"TTM", "QUARTERLY_DISCRETE"}
