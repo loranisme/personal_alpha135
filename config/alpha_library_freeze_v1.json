@@ -1,0 +1,43 @@
+{
+  "schema_version": "ALPHA_LIBRARY_FREEZE_V1",
+  "status": "PAUSED",
+  "frozen_at": "2026-09-23",
+  "current_usable_library": {
+    "name": "V4_BASE_ALPHA_LIBRARY",
+    "factor_count": 135,
+    "library_path": "private/project_factor_library/reconstruction-v4/project_factor_library.json",
+    "library_sha256": "f177e3a67fb9689d50e36f40021e90d275e098cf812b95093d59ac5357fb7231",
+    "source_index_path": "private/project_factor_library/reconstruction-v4/source_reconstruction_index.csv",
+    "source_index_sha256": "8c7e455b205995fe8302982d82af3bd6d60b5435de28e12f9a7fae105b4f97de",
+    "manifest_path": "private/project_factor_library/reconstruction-v4/manifest.json",
+    "manifest_sha256": "7b7bff813f407b0e1abba9b46edbac847a53d3521b679307eb0e29be2fa4d0f5"
+  },
+  "fundamental_expansion_snapshot": {
+    "status": "DIAGNOSTIC_ONLY",
+    "base_factor_count": 135,
+    "new_unique_factor_count": 0,
+    "current_library_pointer_updated": false,
+    "conversion_report_path": "private/sec_edgar/releases/EXPANDED_ALPHA_LIBRARY_V1/conversion_report.json",
+    "conversion_report_sha256": "303404bfb100c37d3c59b26baf013e76dfbd5e97d4d527d76e68f5e821dae28d",
+    "manifest_path": "private/sec_edgar/releases/EXPANDED_ALPHA_LIBRARY_V1/manifest.json",
+    "manifest_sha256": "c0fd49748ab4df72444173b935344157543503d9564cff443a5cf265541459d1"
+  },
+  "frozen_future_route": [
+    "BUILD_HISTORICAL_PIT_SECURITY_IDENTITY_AND_CLASSIFICATIONS",
+    "IMPLEMENT_GROUP_OPERATORS_AND_BRAIN_SETTING_ADAPTER",
+    "RECOMPILE_80_SOURCES_WITH_EXISTING_FIELD_BINDINGS",
+    "ADD_SIX_MISSING_FUNDAMENTAL_FIELD_CAPABILITIES",
+    "FREEZE_PERFORMANCE_BLIND_PROXY_RULES",
+    "RUN_COMPUTE_VERIFICATION_AND_CANONICAL_DEDUPLICATION",
+    "PUBLISH_A_NEW_VERSION_WITHOUT_MUTATING_V4"
+  ],
+  "controls": {
+    "resume_requires_explicit_user_request": true,
+    "v4_artifacts_are_immutable": true,
+    "do_not_update_current_library_pointer": true,
+    "do_not_run_alpha_filter": true,
+    "do_not_run_forward_paper": true,
+    "do_not_submit_orders": true,
+    "do_not_tune_gates_from_results": true
+  }
+}
