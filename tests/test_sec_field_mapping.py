@@ -63,6 +63,19 @@ def test_ttm_basis_needs_explicit_duration_support(tmp_path):
     assert _load(tmp_path, [row])["sales"].required_basis == "TTM"
 
 
+def test_issuer_specific_proxy_does_not_disqualify_strict_sales_binding(tmp_path):
+    catalog = pd.concat([
+        _catalog(),
+        pd.DataFrame([dict(canonical_field="revenue",
+                           required_basis="QUARTERLY_DISCRETE_OR_ANNUAL",
+                           semantic_grade="HYPOTHESIS_PROXY",
+                           sign_convention="AS_REPORTED",
+                           issuer_cik="0000019617")]),
+    ], ignore_index=True)
+    row = _row(brain_field="sales", canonical_field="revenue", required_basis="TTM")
+    assert _load(tmp_path, [row], catalog)["sales"].allowed_track == "SEC_SOURCE_LINKED"
+
+
 def test_release_catalog_uses_supported_basis(tmp_path):
     release_catalog = pd.DataFrame([dict(canonical_field="total_assets", supported_basis="INSTANT",
                                         semantic_grade="SOURCE_LINKED_DIRECT")])

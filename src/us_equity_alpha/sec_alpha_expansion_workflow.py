@@ -9,6 +9,7 @@ import shutil
 import tempfile
 from collections import Counter
 from collections.abc import Mapping
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -101,6 +102,47 @@ def _source_rows(registry: Mapping[str, Any]) -> dict[str, Mapping[str, Any]]:
 
 def _write_csv(path: Path, rows: pd.DataFrame) -> None:
     rows.to_csv(path, index=False, lineterminator="\n")
+
+
+def _verify_compiled_by_track(
+    compiled: list[dict[str, Any]], bindings: Mapping[str, Any],
+    provider: SecFundamentalProvider, start: str, end: str,
+) -> tuple[list[dict[str, Any]], dict[str, pd.DataFrame]]:
+    """Keep strict and proxy reads separate even when they share a SEC field."""
+    verified: list[dict[str, Any]] = []
+    values: dict[str, pd.DataFrame] = {}
+    for track in ("SEC_SOURCE_LINKED", "SEC_HYPOTHESIS_PROXY"):
+        batch = [candidate for candidate in compiled
+                 if candidate["provenance_kind"] == track]
+        if not batch:
+            continue
+        requested = {tuple(bound.split("/", 1)) for candidate in batch
+                     for bound in candidate["field_bindings"].values()}
+        selected = [binding for binding in bindings.values()
+                    if (binding.canonical_field, binding.required_basis) in requested
+                    and (track != "SEC_SOURCE_LINKED"
+                         or binding.allowed_track == "SEC_SOURCE_LINKED")]
+        # Several BRAIN names can resolve to one SEC series. In a proxy batch,
+        # explicit proxy opt-in is scoped to this batch, never the strict one.
+        selected = list({(binding.canonical_field, binding.required_basis): replace(
+            binding, allowed_track=track,
+            semantic_grade=("HYPOTHESIS_PROXY" if track == "SEC_HYPOTHESIS_PROXY"
+                            else binding.semantic_grade),
+        ) for binding in selected}.values())
+        if { (b.canonical_field, b.required_basis) for b in selected } != requested:
+            raise ValueError("SEC_COMPILED_BINDING_MISSING")
+        panels, panel_evidence = load_sec_factor_inputs(provider, selected, start, end)
+        for candidate in batch:
+            checked, matrix = verify_sec_factor(candidate, panels, panel_evidence)
+            verified.append(checked)
+            if matrix is not None:
+                values[checked["local_factor_id"]] = matrix
+    unknown = {candidate["provenance_kind"] for candidate in compiled} - {
+        "SEC_SOURCE_LINKED", "SEC_HYPOTHESIS_PROXY"
+    }
+    if unknown:
+        raise ValueError("SEC_COMPILED_TRACK_INVALID:" + ",".join(sorted(unknown)))
+    return verified, values
 
 
 def _relationship_index(v4_index: pd.DataFrame, demand: pd.DataFrame,
@@ -214,23 +256,12 @@ def run_sec_alpha_expansion(
     verified_records: list[dict[str, Any]] = []
     values: dict[str, pd.DataFrame] = {}
     if compiled:
-        requested = {tuple(bound.split("/", 1)) for candidate in compiled
-                     for bound in candidate["field_bindings"].values()}
-        selected = [binding for binding in bindings.values()
-                    if (binding.canonical_field, binding.required_basis) in requested]
-        # Several BRAIN aliases may share one SEC series; load each series once.
-        selected = list({(b.canonical_field, b.required_basis): b for b in sorted(
-            selected, key=lambda item: item.allowed_track != "SEC_SOURCE_LINKED",
-            reverse=True)}.values())
         start, end = sec_status.get("date_min"), sec_status.get("date_max")
         if not isinstance(start, str) or not isinstance(end, str) or not start or not end:
             raise ValueError("SEC_RELEASE_DATE_RANGE_MISSING")
-        panels, panel_evidence = load_sec_factor_inputs(provider, selected, start, end)
-        for candidate in compiled:
-            checked, matrix = verify_sec_factor(candidate, panels, panel_evidence)
-            verified_records.append(checked)
-            if matrix is not None:
-                values[checked["local_factor_id"]] = matrix
+        verified_records, values = _verify_compiled_by_track(
+            compiled, bindings, provider, start, end
+        )
     passed = [row for row in verified_records if row["build_status"] == "COMPUTE_VERIFIED"]
     unique, dedup, relationships = deduplicate_sec_candidates(v4_library, passed)
     expanded = assemble_expanded_library(

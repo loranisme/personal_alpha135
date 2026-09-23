@@ -175,6 +175,34 @@ def test_fixture_contracts_pass_for_causal_panel():
     assert all(result["checks"].values())
 
 
+def test_fixture_contracts_accept_panel_with_copied_availability_columns():
+    versions = pd.DataFrame([{
+        "source_fact_id": "f1", "raw_source_hash": "a" * 64,
+        "historical_available_at": "2025-02-01T21:00:00Z",
+        "first_seen_at": "2025-02-02T12:00:00Z",
+        "available_at": "2025-02-02T12:00:00Z",
+        "mapping_status": "MAPPED", "canonical_field": "revenue",
+        "reported_basis": "TTM", "issuer_cik": "0000000001",
+        "security_id": "sec-1", "accession_number": "0001",
+        "value": 10.0, "unit": "USD",
+    }])
+    panel = pd.DataFrame([{
+        "source_fact_id": "f1", "signal_cutoff": "2025-02-03T21:00:00Z",
+        "selected_available_at": "2025-02-01T21:00:00Z",
+        "availability_mode": "HISTORICAL_DIAGNOSTIC",
+        "historical_available_at": "2025-02-01T21:00:00Z",
+        "available_at": "2025-02-02T12:00:00Z",
+        "canonical_field": "revenue", "reported_basis": "TTM",
+        "issuer_cik": "0000000001", "security_id": "sec-1",
+        "accession_number": "0001", "value": 10.0, "unit": "USD",
+    }])
+
+    result = validate_fixture_contracts(versions, panel)
+
+    assert result["status"] == "PASS"
+    assert result["checks"]["panel_lineage_resolves"] is True
+
+
 def test_fixture_contracts_fail_on_future_value():
     versions = pd.DataFrame([{
         "source_fact_id": "f1", "raw_source_hash": "a" * 64,

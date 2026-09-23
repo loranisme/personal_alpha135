@@ -63,6 +63,18 @@ def test_incompatible_cumulative_tags_are_not_subtracted():
     assert result.query("reported_basis == 'QUARTERLY_DISCRETE' and fiscal_period == 'Q2'").empty
 
 
+def test_non_increasing_cumulative_period_pair_is_omitted_not_fatal():
+    rows = _cumulative_rows().query("fiscal_period in ['Q3', 'FY']").copy()
+    rows.loc[:, "period_start"] = "2024-01-01"
+    rows.loc[:, "period_end"] = "2024-10-26"
+    rows.loc[:, "duration_days"] = 300
+    result = materialize_period_bases(rows)
+    assert result.query(
+        "reported_basis == 'QUARTERLY_DISCRETE' and fiscal_period == 'Q4'"
+    ).empty
+    assert set(result.reported_basis) >= {"RAW_REPORTED", "ANNUAL"}
+
+
 def test_ttm_requires_four_visible_discrete_quarters():
     result = materialize_period_bases(_cumulative_rows())
     ttm = result.query("reported_basis == 'TTM'")

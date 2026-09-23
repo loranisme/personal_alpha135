@@ -4,6 +4,7 @@ import hashlib
 from pathlib import Path
 
 import pandas as pd
+from sec_edgar_pipeline.processing import _REVIEWED_SHARE_FACTS
 
 from sec_edgar_pipeline.release import sha256_path
 from sec_edgar_pipeline.raw_store import RawArtifact, store_raw_response
@@ -27,6 +28,7 @@ def test_process_gate_rejects_tampered_output(tmp_path):
     summary = {
         "canonical_mapping_hash": "a" * 64,
         "derived_definitions_hash": "b" * 64,
+        "reviewed_share_facts_hash": sha256_path(_REVIEWED_SHARE_FACTS),
         "raw_manifest_hash": sha256_path(tmp_path / "download_ledger.jsonl"),
         "resolved_universe_hash": sha256_path(tmp_path / "resolved_universe_ciks.csv"),
         "output_hashes": {name: sha256_path(processed / name) for name in (
@@ -40,6 +42,28 @@ def test_process_gate_rejects_tampered_output(tmp_path):
     result = MODULE._process_gate(tmp_path)
     assert result["status"] == "FAIL"
     assert result["checks"]["processed_outputs_match_summary"] is False
+
+
+def test_process_gate_rejects_changed_reviewed_share_rule(tmp_path):
+    processed = tmp_path / "processed"
+    processed.mkdir()
+    names = ("fundamental_versions.parquet", "daily_pit_fundamental_panel.parquet", "cik_security_map.csv")
+    for name in names:
+        (processed / name).write_bytes(name.encode())
+    (tmp_path / "download_ledger.jsonl").write_text("raw\n")
+    (tmp_path / "resolved_universe_ciks.csv").write_text("security_id,issuer_cik\n")
+    summary = {
+        "canonical_mapping_hash": "a" * 64,
+        "derived_definitions_hash": "b" * 64,
+        "reviewed_share_facts_hash": "0" * 64,
+        "raw_manifest_hash": sha256_path(tmp_path / "download_ledger.jsonl"),
+        "resolved_universe_hash": sha256_path(tmp_path / "resolved_universe_ciks.csv"),
+        "output_hashes": {name: sha256_path(processed / name) for name in names},
+    }
+    (processed / "process_summary.json").write_text(json.dumps(summary))
+    result = MODULE._process_gate(tmp_path)
+    assert result["status"] == "FAIL"
+    assert result["checks"]["reviewed_share_facts_hash_matches"] is False
 
 
 def test_legacy_batch_timestamp_is_not_release_eligible(tmp_path):
@@ -93,6 +117,29 @@ def test_frozen_xom_cik_transition_blocks_manual_gate_with_evidence(tmp_path):
     assert transition["succession_evidence"]["review_status"] == (
         "REQUIRES_EFFECTIVE_DATED_IDENTITY_REVIEW"
     )
+
+
+def test_reviewed_xom_transition_satisfies_manual_identity_gate(tmp_path):
+    pd.DataFrame([
+        {"ticker": "AAPL", "issuer_cik": "0000320193"},
+        {"ticker": "MSFT", "issuer_cik": "0000789019"},
+        {"ticker": "JPM", "issuer_cik": "0000019617"},
+        {"ticker": "XOM", "issuer_cik": "0002115436"},
+        {"ticker": "WMT", "issuer_cik": "0000104169"},
+    ]).to_csv(tmp_path / "resolved_universe_ciks.csv", index=False)
+    reviewed = {
+        "predecessor_cik": "0000034088", "successor_cik": "0002115436",
+        "effective_at": pd.Timestamp("2026-07-01T00:00:00Z"),
+        "review_hash": "a" * 64,
+    }
+    result = MODULE._manual_identity_evidence(tmp_path, reviewed)
+    assert result["status"] == "PASS"
+    assert result["transitions"] == []
+    assert result["reviewed_transitions"] == [{
+        "ticker": "XOM", "predecessor_cik": "0000034088",
+        "successor_cik": "0002115436", "effective_date": "2026-07-01",
+        "review_hash": "a" * 64,
+    }]
 
 
 def test_missing_frozen_cik_does_not_pass_identity_check(tmp_path):

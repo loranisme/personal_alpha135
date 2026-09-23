@@ -19,6 +19,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--start-date", default="2019-01-01")
     parser.add_argument("--end-date")
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--succession-predecessor-root", type=Path)
+    parser.add_argument("--succession-filing-root", type=Path)
     return parser
 
 
@@ -32,6 +34,8 @@ def main(argv: list[str] | None = None) -> int:
         as_of=args.as_of,
         start_date=args.start_date,
         end_date=args.end_date,
+        succession_predecessor_root=args.succession_predecessor_root,
+        succession_filing_root=args.succession_filing_root,
     )
     print(json.dumps(summary, sort_keys=True, separators=(",", ":")))
     return 0

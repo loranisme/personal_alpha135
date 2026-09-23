@@ -186,6 +186,31 @@ class SecFundamentalProvider:
                     f"SEC_EVIDENCE_OUTPUT_HASH_MISMATCH:{evidence_name}:{output_name}"
                 )
 
+        self._reviewed_share_facts: dict[str, dict[str, Any]] = {}
+        reviewed_hash = payload.get("reviewed_share_facts_hash")
+        if reviewed_hash is not None:
+            if (not isinstance(reviewed_hash, str) or not _HASH_PATTERN.fullmatch(reviewed_hash)
+                    or verified_outputs.get("reviewed_share_facts.json") != reviewed_hash):
+                raise ValueError("SEC_REVIEWED_SHARE_FACTS_HASH_INVALID")
+            reviewed_payload = json.loads((_safe_release_path(
+                self._root, "reviewed_share_facts.json"
+            )).read_text(encoding="utf-8"))
+            if (not isinstance(reviewed_payload, dict)
+                    or reviewed_payload.get("schema_version") != 1
+                    or not isinstance(reviewed_payload.get("reviews"), list)):
+                raise ValueError("SEC_REVIEWED_SHARE_FACTS_SCHEMA_INVALID")
+            for review in reviewed_payload["reviews"]:
+                if (not isinstance(review, dict)
+                        or review.get("canonical_field") != "shares_outstanding_sec"
+                        or review.get("semantic_grade") != "HYPOTHESIS_PROXY"
+                        or not isinstance(review.get("source_fact_id"), str)
+                        or not _HASH_PATTERN.fullmatch(review["source_fact_id"])):
+                    raise ValueError("SEC_REVIEWED_SHARE_FACTS_SCHEMA_INVALID")
+                source_id = review["source_fact_id"]
+                if source_id in self._reviewed_share_facts:
+                    raise ValueError("SEC_REVIEWED_SHARE_FACT_DUPLICATE")
+                self._reviewed_share_facts[source_id] = review
+
         evidence_files = payload.get("evidence_files", {})
         if not isinstance(evidence_files, dict):
             raise ValueError("SEC_EVIDENCE_FILES_NOT_OBJECT")
@@ -334,7 +359,20 @@ class SecFundamentalProvider:
                 if usage in _ENTITY_USAGES
                 else {"VERIFIED_SINGLE_CLASS"}
             )
-            if status not in allowed:
+            reviewed_share = self._reviewed_share_facts.get(str(row.source_fact_id))
+            narrow_proxy_exception = bool(
+                status == "VERIFIED_ENTITY_LEVEL_ONLY"
+                and usage in _SHARE_CLASS_USAGES
+                and reviewed_share is not None
+                and str(row.issuer_cik).zfill(10) == reviewed_share.get("issuer_cik")
+                and str(identity.get("ticker", "")).upper() == reviewed_share.get("ticker")
+                and str(identity.get("exchange", "")).upper() == reviewed_share.get("exchange")
+                and str(row.canonical_field) == reviewed_share.get("canonical_field")
+                and str(row.accession_number) == reviewed_share.get("accession_number")
+                and str(row.semantic_grade) == "HYPOTHESIS_PROXY"
+                and float(row.value) == float(reviewed_share.get("value"))
+            )
+            if status not in allowed and not narrow_proxy_exception:
                 raise ValueError(
                     f"SEC_PANEL_IDENTITY_NOT_USABLE:{usage}:{security_id}:{status}"
                 )
@@ -345,12 +383,17 @@ class SecFundamentalProvider:
         start: str,
         end: str,
         mode: str = "HISTORICAL_DIAGNOSTIC",
+        *,
+        proxy_bindings: Sequence[tuple[str, str]] = (),
     ) -> dict[str, pd.DataFrame]:
         if mode not in {"HISTORICAL_DIAGNOSTIC", "FORWARD_OBSERVED"}:
             raise ValueError(f"SEC_AVAILABILITY_MODE_INVALID:{mode}")
         requested = list(
             dict.fromkeys((str(field), str(basis)) for field, basis in bindings)
         )
+        proxy_pairs = {(str(field), str(basis)) for field, basis in proxy_bindings}
+        if not proxy_pairs.issubset(requested):
+            raise ValueError("SEC_PROXY_BINDING_NOT_REQUESTED")
         for field_basis in requested:
             if field_basis not in self._binding_usage:
                 raise ValueError(
@@ -456,6 +499,18 @@ class SecFundamentalProvider:
                     frame.canonical_field, frame.reported_basis, strict=True
                 )
             ]
+        ]
+        approved_grades = {"SOURCE_LINKED_DIRECT", "SOURCE_LINKED_DERIVED", "HYPOTHESIS_PROXY"}
+        unknown_grades = set(frame.semantic_grade).difference(approved_grades)
+        if unknown_grades:
+            raise ValueError("SEC_PANEL_SEMANTIC_GRADE_UNKNOWN:" + ",".join(sorted(unknown_grades)))
+        frame = frame.loc[
+            frame.semantic_grade.ne("HYPOTHESIS_PROXY")
+            | pd.Series(
+                [(str(field), str(basis)) in proxy_pairs
+                 for field, basis in zip(frame.canonical_field, frame.reported_basis, strict=True)],
+                index=frame.index,
+            )
         ]
         self._validate_identity_rows(frame)
 

@@ -15,6 +15,7 @@ CATALOG_COLUMNS = {
     "fact_type", "statement", "required_basis", "priority", "effective_from",
     "effective_to", "semantic_grade", "sign_convention", "review_evidence",
 }
+OPTIONAL_CATALOG_COLUMNS = {"issuer_cik"}
 
 
 def _row_hash(row: dict) -> str:
@@ -26,19 +27,25 @@ def _row_hash(row: dict) -> str:
 
 def load_mapping_catalog(path: Path | str) -> pd.DataFrame:
     frame = pd.read_csv(path, dtype=str, keep_default_na=False)
-    if set(frame.columns) != CATALOG_COLUMNS:
+    if not CATALOG_COLUMNS.issubset(frame.columns) or not set(frame.columns).issubset(
+        CATALOG_COLUMNS | OPTIONAL_CATALOG_COLUMNS
+    ):
         missing = sorted(CATALOG_COLUMNS - set(frame.columns))
-        unknown = sorted(set(frame.columns) - CATALOG_COLUMNS)
+        unknown = sorted(set(frame.columns) - CATALOG_COLUMNS - OPTIONAL_CATALOG_COLUMNS)
         raise ValueError(f"MAPPING_CATALOG_SCHEMA_INVALID:missing={missing}:unknown={unknown}")
     if frame.empty:
         raise ValueError("MAPPING_CATALOG_EMPTY")
+    if "issuer_cik" not in frame:
+        frame["issuer_cik"] = ""
+    if frame.issuer_cik.map(lambda cik: bool(cik) and (len(cik) != 10 or not cik.isdigit())).any():
+        raise ValueError("MAPPING_ISSUER_CIK_INVALID")
     frame["priority"] = pd.to_numeric(frame.priority, errors="raise").astype(int)
     if (frame.priority < 1).any():
         raise ValueError("MAPPING_PRIORITY_INVALID")
-    exact_key = ["taxonomy", "tag", "unit", "fact_type", "effective_from", "effective_to", "priority"]
+    exact_key = ["taxonomy", "tag", "unit", "fact_type", "issuer_cik", "effective_from", "effective_to", "priority"]
     if frame.duplicated(exact_key).any():
         raise ValueError("MAPPING_DUPLICATE_ACTIVE_KEY")
-    for _, group in frame.groupby(["taxonomy", "tag", "unit", "fact_type", "priority"]):
+    for _, group in frame.groupby(["taxonomy", "tag", "unit", "fact_type", "issuer_cik", "priority"]):
         ordered = group.assign(
             _from=pd.to_datetime(group.effective_from, errors="raise"),
             _to=pd.to_datetime(group.effective_to.replace("", "2262-04-11"), errors="raise"),
@@ -92,17 +99,25 @@ def apply_canonical_mapping(
         tag_matches = by_tag.get(
             (str(source["xbrl_namespace"]), str(source["xbrl_tag"])), []
         )
+        source_cik = str(source.get("issuer_cik") or "").zfill(10)
+        tag_matches = [
+            binding for binding in tag_matches
+            if not binding["issuer_cik"] or binding["issuer_cik"] == source_cik
+        ]
+        active_matches = [
+            binding for binding in tag_matches
+            if binding["_from"] <= filed <= binding["_to"]
+        ]
         unit = _normalize_unit(source["unit"])
         exact = [
-            binding for binding in tag_matches
+            binding for binding in active_matches
             if binding["_unit"] == unit
             and binding["fact_type"] == str(source["fact_type"])
-            and binding["_from"] <= filed <= binding["_to"]
         ]
         if not exact:
             row = dict(source)
             row["mapping_status"] = (
-                "DEFERRED_UNIT_OR_BASIS" if tag_matches else "DEFERRED_SEMANTIC"
+                "DEFERRED_UNIT_OR_BASIS" if active_matches else "DEFERRED_SEMANTIC"
             )
             deferred_rows.append(row)
             continue

@@ -24,18 +24,13 @@ from .periods import materialize_period_bases
 from .pit import MODES, build_daily_pit_panel
 from .issuer_seed import normalize_cik
 from .raw_store import RawArtifact, read_raw_artifact
+from .reviewed_share_facts import load_reviewed_share_facts, retain_reviewed_share_facts
 from .submissions import build_accession_index
+from .succession import verify_xom_successor_bridge
 
 
 PIPELINE_VERSION = "SEC_PIT_FUNDAMENTALS_V1"
 _ENTITY_LEVEL_STATUSES = {"VERIFIED_SINGLE_CLASS", "VERIFIED_ENTITY_LEVEL_ONLY"}
-_SHARE_CLASS_FIELDS = {
-    "shares_outstanding_sec",
-    "weighted_average_basic_shares",
-    "weighted_average_diluted_shares",
-    "basic_eps",
-    "diluted_eps",
-}
 _US_STATE_OR_DC = frozenset(
     "AL AK AZ AR CA CO CT DE FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS MO MT NE NV NH NJ NM NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY DC".split()
 )
@@ -46,6 +41,7 @@ PROCESS_OUTPUTS = (
     "process_summary.json",
 )
 _IDENTITY_REVIEW_BLOCKS = Path(__file__).resolve().parents[2] / "config" / "identity_review_blocks.json"
+_REVIEWED_SHARE_FACTS = Path(__file__).resolve().parents[2] / "config" / "reviewed_share_facts.json"
 _VERSION_COLUMNS = (
     "issuer_cik", "security_id", "ticker_at_source", "xbrl_namespace", "xbrl_tag",
     "canonical_field", "mapping_version", "mapping_status", "value", "unit",
@@ -294,7 +290,8 @@ def _load_definitions(path: Path) -> Mapping[str, Any]:
 
 
 def _apply_identity_review_blocks(
-    identity: pd.DataFrame, block_path: Path = _IDENTITY_REVIEW_BLOCKS
+    identity: pd.DataFrame, block_path: Path = _IDENTITY_REVIEW_BLOCKS,
+    reviewed_succession: Mapping[str, Any] | None = None,
 ) -> pd.DataFrame:
     payload = json.loads(block_path.read_text(encoding="utf-8"))
     blocks = payload.get("blocks") if isinstance(payload, dict) else None
@@ -305,6 +302,8 @@ def _apply_identity_review_blocks(
     frame["review_block_evidence_url"] = ""
     frame["review_block_effective_date"] = ""
     frame["review_block_predecessor_cik"] = ""
+    frame["succession_review_hash"] = ""
+    frame["succession_filing_sha256"] = ""
     for block in blocks:
         required = {
             "ticker", "issuer_cik", "predecessor_cik", "effective_date",
@@ -317,6 +316,32 @@ def _apply_identity_review_blocks(
         pd.Timestamp(block["effective_date"])
         cik_column = "resolved_issuer_cik" if "resolved_issuer_cik" in frame else "issuer_cik"
         mask = frame.ticker.astype(str).str.upper().eq(str(block["ticker"]).upper()) & frame[cik_column].astype(str).str.zfill(10).eq(str(block["issuer_cik"]).zfill(10))
+        if reviewed_succession is not None and str(block["ticker"]).upper() == "XOM":
+            if (str(block["issuer_cik"]).zfill(10), str(block["predecessor_cik"]).zfill(10),
+                str(block["effective_date"]), str(block["evidence_url"])) != (
+                reviewed_succession["successor_cik"], reviewed_succession["predecessor_cik"],
+                reviewed_succession["effective_at"].date().isoformat(),
+                reviewed_succession["sec_filing_url"],
+            ):
+                raise ValueError("PROCESS_SUCCESSION_BLOCK_REVIEW_CONFLICT")
+            if mask.sum() != 1 or frame.loc[mask, "mapping_status"].iloc[0] != "VERIFIED_SINGLE_CLASS":
+                raise ValueError("PROCESS_SUCCESSION_SUCCESSOR_IDENTITY_NOT_UNIQUE")
+            current_start = pd.Timestamp(frame.loc[mask, "effective_from"].iloc[0])
+            if current_start.tzinfo is None:
+                raise ValueError("PROCESS_SUCCESSION_IDENTITY_WINDOW_TIMEZONE_REQUIRED")
+            frame.loc[mask, "effective_from"] = max(
+                current_start.tz_convert("UTC"), reviewed_succession["effective_at"],
+                reviewed_succession["bridge_first_seen_at"],
+            )
+            frame.loc[mask, "mapping_source"] = (
+                "SEC_SUBMISSIONS_TICKER_EXCHANGE+REVIEWED_8K_SUCCESSION"
+            )
+            frame.loc[mask, "succession_review_hash"] = reviewed_succession["review_hash"]
+            frame.loc[mask, "succession_filing_sha256"] = reviewed_succession["sec_filing_sha256"]
+            frame.loc[mask, "review_block_evidence_url"] = reviewed_succession["sec_filing_url"]
+            frame.loc[mask, "review_block_effective_date"] = str(block["effective_date"])
+            frame.loc[mask, "review_block_predecessor_cik"] = reviewed_succession["predecessor_cik"]
+            continue
         frame.loc[mask, "mapping_status"] = "UNRESOLVED"
         frame.loc[mask, "blocking_reasons"] = frame.loc[mask, "blocking_reasons"].astype(str).map(
             lambda current: "|".join(filter(None, [current, str(block["reason"])]))
@@ -448,6 +473,7 @@ def _process_one_security(
     catalog: pd.DataFrame,
     definitions: Mapping[str, Any],
     sessions: pd.DatetimeIndex,
+    reviewed_share_facts: tuple[dict[str, Any], ...],
 ) -> tuple[pd.DataFrame, pd.DataFrame, dict[str, Any]]:
     cik = str(row.issuer_cik).zfill(10)
     company_payload = _payload(raw_root, company_artifact)
@@ -486,9 +512,9 @@ def _process_one_security(
     mapped_count = len(mapped)
     share_class_blocked_count = 0
     if not mapped.empty and row.mapping_status == "VERIFIED_ENTITY_LEVEL_ONLY":
-        blocked = mapped.canonical_field.isin(_SHARE_CLASS_FIELDS)
-        share_class_blocked_count = int(blocked.sum())
-        mapped = mapped.loc[~blocked].copy()
+        mapped, share_class_blocked_count = retain_reviewed_share_facts(
+            mapped, row._asdict(), reviewed_share_facts
+        )
     if mapped.empty:
         return pd.DataFrame(), pd.DataFrame(), {
             "normalized_fact_count": int(len(normalized)),
@@ -553,6 +579,8 @@ def process_sec_raw(
     as_of: Any,
     start_date: str = "2019-01-01",
     end_date: str | None = None,
+    succession_predecessor_root: Path | str | None = None,
+    succession_filing_root: Path | str | None = None,
 ) -> dict[str, Any]:
     """Build immutable processed artifacts without any network access."""
 
@@ -610,7 +638,19 @@ def process_sec_raw(
             "PROCESS_ISSUER_RESOLUTION_CONFLICT:"
             + ",".join(sorted(mismatched.security_id.astype(str)))
         )
-    identity = _apply_identity_review_blocks(identity)
+    if (succession_predecessor_root is None) != (succession_filing_root is None):
+        raise ValueError("PROCESS_SUCCESSION_EVIDENCE_ROOTS_INCOMPLETE")
+    reviewed_succession = None
+    if succession_predecessor_root is not None:
+        reviewed_succession = verify_xom_successor_bridge(
+            predecessor_root=Path(succession_predecessor_root),
+            successor_root=root,
+            filing_root=Path(succession_filing_root),
+            as_of=cutoff,
+        )
+    identity = _apply_identity_review_blocks(
+        identity, reviewed_succession=reviewed_succession
+    )
     eligible = identity[identity.mapping_status.isin(_ENTITY_LEVEL_STATUSES)]
     if eligible.empty:
         status_counts = identity.mapping_status.value_counts().to_dict()
@@ -620,6 +660,7 @@ def process_sec_raw(
 
     catalog = load_mapping_catalog(mapping_path)
     definitions = _load_definitions(Path(derived_definitions_path))
+    reviewed_share_facts = load_reviewed_share_facts(_REVIEWED_SHARE_FACTS)
     calendar = xcals.get_calendar("XNYS")
     earliest_identity_date = pd.to_datetime(
         eligible.effective_from, utc=True, errors="raise"
@@ -648,6 +689,7 @@ def process_sec_raw(
                 catalog=catalog,
                 definitions=definitions,
                 sessions=sessions,
+                reviewed_share_facts=reviewed_share_facts,
             )
             for key, value in counts.items():
                 if key == "deferred_mapping_status_counts":
@@ -678,6 +720,19 @@ def process_sec_raw(
             "canonical_mapping_hash": _sha256_file(Path(mapping_path)),
             "derived_definitions_hash": _sha256_file(Path(derived_definitions_path)),
             "identity_review_blocks_hash": _sha256_file(_IDENTITY_REVIEW_BLOCKS),
+            "reviewed_share_facts_hash": _sha256_file(_REVIEWED_SHARE_FACTS),
+            "succession_review_hash": (
+                reviewed_succession["review_hash"] if reviewed_succession else None
+            ),
+            "succession_filing_sha256": (
+                reviewed_succession["sec_filing_sha256"] if reviewed_succession else None
+            ),
+            "succession_predecessor_ledger_hash": (
+                reviewed_succession["predecessor_ledger_hash"] if reviewed_succession else None
+            ),
+            "succession_filing_ledger_hash": (
+                reviewed_succession["filing_ledger_hash"] if reviewed_succession else None
+            ),
             "selected_raw_artifacts": [
                 {
                     "cik": artifact.cik,
@@ -735,7 +790,7 @@ def process_sec_raw(
         }
         result = writer.finalize(identity, evidence)
         return {"status": "PASS", **result}
-    except Exception:
+    except BaseException:
         writer.abort()
         raise
 

@@ -65,7 +65,13 @@ def load_sec_factor_inputs(
     if not requested:
         raise ValueError("SEC_INPUT_BINDINGS_EMPTY")
 
-    raw = provider.load_panels(list(requested.values()), start, end, mode)
+    proxy_pairs = [
+        requested[alias] for alias, track in requested_tracks.items()
+        if track == "SEC_HYPOTHESIS_PROXY"
+    ]
+    raw = provider.load_panels(
+        list(requested.values()), start, end, mode, proxy_bindings=proxy_pairs
+    )
     expected = {f"{field}__{basis}" for field, basis in requested.values()}
     if set(raw) != expected:
         raise ValueError("SEC_PROVIDER_INPUT_SET_MISMATCH")

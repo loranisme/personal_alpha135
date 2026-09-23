@@ -139,26 +139,22 @@ def validate_fixture_contracts(
         and source.source_fact_id.astype(str).str.strip().ne("").all()
         and not source.duplicated(lineage_keys).any()
     )
-    joined = visible.merge(
-        source[
-            [
-                *lineage_keys,
-                "historical_available_at",
-                "available_at",
-                "issuer_cik",
-                "accession_number",
-                "value",
-                "unit",
-            ]
-        ],
-        on=lineage_keys,
-        how="left",
-        suffixes=("_panel", "_version"),
+    version_metadata = [
+        "historical_available_at",
+        "available_at",
+        "issuer_cik",
+        "accession_number",
+        "value",
+        "unit",
+    ]
+    source_for_join = source[[*lineage_keys, *version_metadata]].rename(
+        columns={column: f"{column}_version" for column in version_metadata}
     )
+    joined = visible.merge(source_for_join, on=lineage_keys, how="left")
     lineage_resolves = bool(
         source_lineage_keys_unique
         and len(joined) == len(visible)
-        and joined.historical_available_at.notna().all()
+        and joined.historical_available_at_version.notna().all()
     )
     if lineage_resolves:
         metadata_equal = pd.Series(True, index=joined.index)
@@ -167,13 +163,13 @@ def validate_fixture_contracts(
             "accession_number",
             "unit",
         ):
-            left = joined[f"{column}_panel"].astype("string").fillna("")
+            left = joined[column].astype("string").fillna("")
             right = joined[f"{column}_version"].astype("string").fillna("")
             if column == "issuer_cik":
                 left = left.str.zfill(10)
                 right = right.str.zfill(10)
             metadata_equal &= left.eq(right)
-        panel_numbers = pd.to_numeric(joined.value_panel, errors="coerce")
+        panel_numbers = pd.to_numeric(joined.value, errors="coerce")
         version_numbers = pd.to_numeric(joined.value_version, errors="coerce")
         values_equal = pd.Series(
             np.isclose(panel_numbers, version_numbers, rtol=0, atol=1e-12),
@@ -183,10 +179,10 @@ def validate_fixture_contracts(
         historical_rows = joined.availability_mode.eq("HISTORICAL_DIAGNOSTIC")
         forward_rows = joined.availability_mode.eq("FORWARD_OBSERVED")
         expected_selected.loc[historical_rows] = joined.loc[
-            historical_rows, "historical_available_at"
+            historical_rows, "historical_available_at_version"
         ]
         expected_selected.loc[forward_rows] = joined.loc[
-            forward_rows, "available_at"
+            forward_rows, "available_at_version"
         ]
         selected_matches_source = joined.selected_available_at.eq(expected_selected)
     else:
@@ -491,6 +487,14 @@ def validate_manual_issuers(
     """Reconcile reviewed observations to verified raw SEC facts and timestamps."""
 
     versions = pd.read_parquet(release_inputs["fundamental_versions"])
+    supplemental_versions = release_inputs.get("supplemental_fundamental_versions")
+    if supplemental_versions is not None:
+        supplemental = (
+            supplemental_versions.copy()
+            if isinstance(supplemental_versions, pd.DataFrame)
+            else pd.read_parquet(supplemental_versions)
+        )
+        versions = pd.concat([versions, supplemental], ignore_index=True, sort=False)
     expected = pd.read_csv(
         release_inputs["manual_expected"], dtype=str, keep_default_na=False
     )
@@ -541,6 +545,15 @@ def validate_manual_issuers(
     companyfacts, accession_indexes, verified_sources = _raw_inventory(
         Path(raw_root), Path(raw_manifest), evidence_ciks
     )
+    supplemental_root = release_inputs.get("supplemental_raw_root")
+    if supplemental_root is not None:
+        extra_companyfacts, extra_accessions, extra_sources = _raw_inventory(
+            Path(supplemental_root), Path(supplemental_root) / "download_ledger.jsonl",
+            evidence_ciks,
+        )
+        companyfacts.update(extra_companyfacts)
+        accession_indexes.update(extra_accessions)
+        verified_sources.update(extra_sources)
     mapping_catalog = load_mapping_catalog(
         release_inputs.get(
             "mapping_catalog",

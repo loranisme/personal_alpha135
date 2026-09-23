@@ -16,6 +16,8 @@ import pandas as pd
 from sec_edgar_pipeline.contracts import load_policy
 from sec_edgar_pipeline.release import build_sec_release, sha256_path
 from sec_edgar_pipeline.validation import identity_coverage as _identity_coverage
+from sec_edgar_pipeline.succession import DEFAULT_REVIEW, verify_xom_successor_bridge
+from sec_edgar_pipeline.processing import _REVIEWED_SHARE_FACTS
 
 
 def _resolve(raw_root: Path, explicit: Path | None, name: str) -> Path:
@@ -36,6 +38,8 @@ def _sha256(path: Path) -> str:
 def _verify_processing_evidence(
     raw_root: Path, mapping: Path, derived_definitions: Path,
     versions: Path, panel: Path, identity: Path, validation: dict,
+    succession_predecessor_root: Path | None = None,
+    succession_filing_root: Path | None = None,
 ) -> dict:
     """Bind processed rows to the exact rules and raw snapshot used to create them."""
     summary_path = raw_root / "processed" / "process_summary.json"
@@ -48,6 +52,25 @@ def _verify_processing_evidence(
         raise ValueError("PROCESS_MAPPING_HASH_MISMATCH")
     if summary.get("derived_definitions_hash") != _sha256(derived_definitions):
         raise ValueError("PROCESS_DERIVED_DEFINITIONS_HASH_MISMATCH")
+    if summary.get("reviewed_share_facts_hash") != _sha256(_REVIEWED_SHARE_FACTS):
+        raise ValueError("PROCESS_REVIEWED_SHARE_FACTS_HASH_MISMATCH")
+    if summary.get("succession_review_hash") is not None and summary["succession_review_hash"] != _sha256(DEFAULT_REVIEW):
+        raise ValueError("PROCESS_SUCCESSION_RULE_HASH_MISMATCH")
+    if summary.get("succession_review_hash") is not None:
+        if succession_predecessor_root is None or succession_filing_root is None:
+            raise ValueError("PROCESS_SUCCESSION_RAW_EVIDENCE_REQUIRED")
+        reviewed = verify_xom_successor_bridge(
+            predecessor_root=succession_predecessor_root, successor_root=raw_root,
+            filing_root=succession_filing_root, as_of=pd.Timestamp(summary["as_of"]),
+        )
+        for key, reviewed_key in (
+            ("succession_review_hash", "review_hash"),
+            ("succession_filing_sha256", "sec_filing_sha256"),
+            ("succession_predecessor_ledger_hash", "predecessor_ledger_hash"),
+            ("succession_filing_ledger_hash", "filing_ledger_hash"),
+        ):
+            if summary.get(key) != reviewed[reviewed_key]:
+                raise ValueError("PROCESS_SUCCESSION_EVIDENCE_HASH_MISMATCH:" + key)
     for key, path in (
         ("raw_manifest_hash", raw_root / "download_ledger.jsonl"),
         ("resolved_universe_hash", raw_root / "resolved_universe_ciks.csv"),
@@ -121,6 +144,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--versions", type=Path)
     parser.add_argument("--panel", type=Path)
     parser.add_argument("--identity-map", type=Path)
+    parser.add_argument("--succession-predecessor-root", type=Path)
+    parser.add_argument("--succession-filing-root", type=Path)
     parser.add_argument("--price-snapshot", type=Path)
     parser.add_argument("--include-market-proxies", action="store_true")
     return parser
@@ -160,6 +185,7 @@ def main(argv: list[str] | None = None) -> int:
     process_summary = _verify_processing_evidence(
         args.raw_root, args.mapping, args.derived_definitions,
         versions_path, panel_path, identity_path, validation,
+        args.succession_predecessor_root, args.succession_filing_root,
     )
     versions = pd.read_parquet(versions_path)
     panel = pd.read_parquet(panel_path)
@@ -225,7 +251,14 @@ def main(argv: list[str] | None = None) -> int:
             "pit_contract_hash": _sha256(args.policy),
             "processing_mapping_hash": process_summary["canonical_mapping_hash"],
             "processing_derived_hash": process_summary["derived_definitions_hash"],
+            "reviewed_share_facts_hash": process_summary["reviewed_share_facts_hash"],
+            "reviewed_share_facts": _REVIEWED_SHARE_FACTS,
             "process_summary_hash": _sha256(args.raw_root / "processed" / "process_summary.json"),
+            "process_summary": args.raw_root / "processed" / "process_summary.json",
+            "succession_review_hash": process_summary.get("succession_review_hash"),
+            "succession_filing_sha256": process_summary.get("succession_filing_sha256"),
+            "succession_predecessor_ledger_hash": process_summary.get("succession_predecessor_ledger_hash"),
+            "succession_filing_ledger_hash": process_summary.get("succession_filing_ledger_hash"),
         }
         manifest = build_sec_release(inputs, args.output, args.pipeline_commit)
     finally:

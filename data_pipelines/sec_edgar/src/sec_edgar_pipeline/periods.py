@@ -88,6 +88,12 @@ def _derived_quarter(
 ) -> dict[str, Any] | None:
     if prior_row is not None and not _compatible(end_row, prior_row):
         return None
+    if prior_row is not None and pd.Timestamp(str(prior_row["period_end"])) >= pd.Timestamp(
+        str(end_row["period_end"])
+    ):
+        # Some issuers publish overlapping or equal-length cumulative labels.
+        # There is no positive residual quarter to derive from such a pair.
+        return None
     value = float(end_row["value"])
     input_rows = [end_row]
     if prior_row is not None:

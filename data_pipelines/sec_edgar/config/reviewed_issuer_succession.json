@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "bridges": [
+    {
+      "ticker": "XOM",
+      "predecessor_cik": "0000034088",
+      "successor_cik": "0002115436",
+      "effective_date": "2026-07-01",
+      "sec_filing_url": "https://www.sec.gov/Archives/edgar/data/2115436/000119312526291990/d71068d8k12b.htm",
+      "sec_filing_sha256": "1dab83df91d7ba4959d5118dac49fb64aebdd3e31653d056ed9bcb00f815dbad",
+      "predecessor_companyfacts_sha256": "9b95535419e5662e3deed01de803e83deead477a4c81316e1c45186368fdd8b8",
+      "predecessor_submissions_sha256": "101429890266df0a5564f00f016310ac79a64c71eb24c297e9aa0047b7700ad1",
+      "successor_companyfacts_sha256": "2719a5e960fbd38d2759a183008267387324a5d705cca2c8c72a6980b3ed199b",
+      "successor_submissions_sha256": "edc19fb420dbc97199c1597a3ec818a5fce6f94821186c37e8c16b2ca9d75511"
+    }
+  ]
+}

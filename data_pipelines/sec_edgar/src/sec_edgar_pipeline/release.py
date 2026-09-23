@@ -198,7 +198,7 @@ def build_sec_release(
         validation = json.loads(Path(validation_json).read_text(encoding="utf-8"))
         if not isinstance(validation, dict) or any(
             validation.get(name) != "PASS"
-            for name in ("validation_status", "fixture_status", "manual_status", "raw_status", "identity_status")
+            for name in ("validation_status", "fixture_status", "manual_status", "raw_status", "processing_status", "identity_status")
         ) or validation.get("manual_identity", {}).get("status") != "PASS":
             raise ValueError("RELEASE_VALIDATION_STATUS_NOT_PASS")
     if not isinstance(pipeline_commit, str) or not pipeline_commit.strip():
@@ -226,6 +226,32 @@ def build_sec_release(
     try:
         for key, name in OUTPUT_MAP.items():
             _copy_path(Path(inputs[key]), staged_output / name)
+        if inputs.get("scale_release", False):
+            reviewed_path = inputs.get("reviewed_share_facts")
+            if reviewed_path is None:
+                raise ValueError("RELEASE_REVIEWED_SHARE_FACTS_REQUIRED")
+            if sha256_path(reviewed_path) != inputs.get("reviewed_share_facts_hash"):
+                raise ValueError("RELEASE_REVIEWED_SHARE_FACTS_HASH_MISMATCH")
+            _copy_path(Path(reviewed_path), staged_output / "reviewed_share_facts.json")
+            process_summary_path = inputs.get("process_summary")
+            if process_summary_path is None:
+                raise ValueError("RELEASE_PROCESS_SUMMARY_REQUIRED")
+            if sha256_path(process_summary_path) != inputs.get("process_summary_hash"):
+                raise ValueError("RELEASE_PROCESS_SUMMARY_HASH_MISMATCH")
+            process_summary = json.loads(Path(process_summary_path).read_text(encoding="utf-8"))
+            evidence_bindings = {
+                "processing_mapping_hash": "canonical_mapping_hash",
+                "processing_derived_hash": "derived_definitions_hash",
+                "reviewed_share_facts_hash": "reviewed_share_facts_hash",
+                "succession_review_hash": "succession_review_hash",
+                "succession_filing_sha256": "succession_filing_sha256",
+                "succession_predecessor_ledger_hash": "succession_predecessor_ledger_hash",
+                "succession_filing_ledger_hash": "succession_filing_ledger_hash",
+            }
+            for input_name, summary_name in evidence_bindings.items():
+                if inputs.get(input_name) != process_summary.get(summary_name):
+                    raise ValueError("RELEASE_PROCESS_SUMMARY_EVIDENCE_MISMATCH:" + input_name)
+            _copy_path(Path(process_summary_path), staged_output / "processing_summary.json")
 
         versions = _read_parquet(staged_output / "fundamental_versions.parquet")
         panel = _read_parquet(staged_output / "daily_pit_fundamental_panel.parquet")
@@ -281,8 +307,11 @@ def build_sec_release(
             raise ValueError("RELEASE_CAUSAL_CONTRACT_FAILED:" + ",".join(failed))
 
         _reject_secret_content(staged_output)
+        published_files = list(OUTPUT_MAP.values())
+        if inputs.get("scale_release", False):
+            published_files.extend(["reviewed_share_facts.json", "processing_summary.json"])
         output_hashes = {
-            name: sha256_path(staged_output / name) for name in OUTPUT_MAP.values()
+            name: sha256_path(staged_output / name) for name in published_files
         }
         raw_manifest_hash = sha256_path(Path(inputs["raw_manifest"]))
         universe_hash = sha256_path(Path(inputs["universe_snapshot"]))
@@ -290,8 +319,14 @@ def build_sec_release(
             "pit_contract_hash", inputs["pit_contract_hash"]
         )
         if inputs.get("scale_release", False):
-            for name in ("processing_mapping_hash", "processing_derived_hash", "process_summary_hash"):
+            for name in ("processing_mapping_hash", "processing_derived_hash", "process_summary_hash", "reviewed_share_facts_hash"):
                 _validate_evidence_hash(name, inputs.get(name))
+            if inputs.get("succession_review_hash") is not None:
+                for name in (
+                    "succession_review_hash", "succession_filing_sha256",
+                    "succession_predecessor_ledger_hash", "succession_filing_ledger_hash",
+                ):
+                    _validate_evidence_hash(name, inputs.get(name))
             if validation.get("process_summary_sha256") != inputs["process_summary_hash"]:
                 raise ValueError("RELEASE_PROCESS_SUMMARY_HASH_MISMATCH")
             for key, actual in {
@@ -317,6 +352,11 @@ def build_sec_release(
             "processing_mapping_hash": inputs.get("processing_mapping_hash"),
             "processing_derived_hash": inputs.get("processing_derived_hash"),
             "process_summary_hash": inputs.get("process_summary_hash"),
+            "reviewed_share_facts_hash": inputs.get("reviewed_share_facts_hash"),
+            "succession_review_hash": inputs.get("succession_review_hash"),
+            "succession_filing_sha256": inputs.get("succession_filing_sha256"),
+            "succession_predecessor_ledger_hash": inputs.get("succession_predecessor_ledger_hash"),
+            "succession_filing_ledger_hash": inputs.get("succession_filing_ledger_hash"),
             "derived_field_catalog_hash": output_hashes["derived_field_definitions.json"],
             "security_mapping_hash": output_hashes["cik_security_map.csv"],
             "pit_contract_hash": pit_contract_hash,
@@ -347,7 +387,7 @@ def build_sec_release(
             "survivorship_bias": True,
             "selection_evidence": "DEVELOPMENT_EXPOSED",
             "validation_status": "PASS",
-            "output_files": list(OUTPUT_MAP.values()),
+            "output_files": published_files,
             "output_hashes": output_hashes,
         }
         if not manifest["dataset_version"] or manifest["dataset_version"].lower() == "latest":

@@ -18,6 +18,11 @@ from sec_edgar_pipeline.validation import (
     identity_coverage,
 )
 from sec_edgar_pipeline.release import sha256_path
+from sec_edgar_pipeline.succession import (
+    DEFAULT_REVIEW, build_xom_predecessor_manual_versions,
+    verify_xom_successor_bridge,
+)
+from sec_edgar_pipeline.processing import _REVIEWED_SHARE_FACTS
 
 
 _FROZEN_MANUAL_TICKERS = {
@@ -36,7 +41,9 @@ _XOM_SUCCESSION_EVIDENCE = {
 }
 
 
-def _manual_identity_evidence(raw_root: Path) -> dict[str, Any]:
+def _manual_identity_evidence(
+    raw_root: Path, reviewed_succession: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     path = raw_root / "resolved_universe_ciks.csv"
     if not path.is_file():
         return {"status": "BLOCKED", "reason": "RESOLVED_UNIVERSE_CIKS_MISSING", "transitions": []}
@@ -44,6 +51,7 @@ def _manual_identity_evidence(raw_root: Path) -> dict[str, Any]:
     if not {"ticker", "issuer_cik"}.issubset(resolved.columns):
         return {"status": "BLOCKED", "reason": "RESOLVED_UNIVERSE_CIK_SCHEMA_INVALID", "transitions": []}
     transitions = []
+    reviewed_transitions = []
     for ticker, frozen_cik in _FROZEN_MANUAL_TICKERS.items():
         found = sorted({
             str(value).zfill(10)
@@ -53,6 +61,16 @@ def _manual_identity_evidence(raw_root: Path) -> dict[str, Any]:
             if str(value).strip()
         })
         if found != [frozen_cik]:
+            if (ticker == "XOM" and reviewed_succession is not None
+                    and frozen_cik == reviewed_succession["predecessor_cik"]
+                    and found == [reviewed_succession["successor_cik"]]):
+                reviewed_transitions.append({
+                    "ticker": ticker, "predecessor_cik": frozen_cik,
+                    "successor_cik": found[0],
+                    "effective_date": reviewed_succession["effective_at"].date().isoformat(),
+                    "review_hash": reviewed_succession["review_hash"],
+                })
+                continue
             transitions.append({
                 "ticker": ticker,
                 "frozen_manual_cik": frozen_cik,
@@ -70,6 +88,7 @@ def _manual_identity_evidence(raw_root: Path) -> dict[str, Any]:
         "status": "PASS" if not transitions else "BLOCKED",
         "reason": "MATCH" if not transitions else "IDENTITY_TRANSITION_REQUIRES_REVIEW",
         "transitions": transitions,
+        "reviewed_transitions": reviewed_transitions,
     }
 
 
@@ -88,7 +107,10 @@ def _resolve(default_root: Path, explicit: Path | None, name: str) -> Path:
     return path
 
 
-def _process_gate(raw_root: Path) -> dict[str, Any]:
+def _process_gate(
+    raw_root: Path, succession_predecessor_root: Path | None = None,
+    succession_filing_root: Path | None = None,
+) -> dict[str, Any]:
     summary_path = raw_root / "processed" / "process_summary.json"
     if not summary_path.is_file() or summary_path.is_symlink():
         return {"status": "FAIL", "reason": "PROCESS_SUMMARY_MISSING"}
@@ -114,7 +136,39 @@ def _process_gate(raw_root: Path) -> dict[str, Any]:
                 and len(summary["canonical_mapping_hash"]) == 64,
             "derived_rule_hash_recorded": isinstance(summary.get("derived_definitions_hash"), str)
                 and len(summary["derived_definitions_hash"]) == 64,
+            "reviewed_share_facts_hash_matches": summary.get("reviewed_share_facts_hash") == _sha256(
+                _REVIEWED_SHARE_FACTS
+            ),
+            "succession_rule_hash_matches": (
+                summary.get("succession_review_hash") is None
+                or summary.get("succession_review_hash") == _sha256(DEFAULT_REVIEW)
+            ),
+            "succession_evidence_hashes_recorded": (
+                summary.get("succession_review_hash") is None
+                or all(isinstance(summary.get(name), str) and len(summary[name]) == 64
+                       for name in ("succession_filing_sha256", "succession_predecessor_ledger_hash",
+                                    "succession_filing_ledger_hash"))
+            ),
         }
+        if summary.get("succession_review_hash") is not None:
+            if succession_predecessor_root is None or succession_filing_root is None:
+                checks["succession_raw_evidence_reverified"] = False
+            else:
+                reviewed = verify_xom_successor_bridge(
+                    predecessor_root=succession_predecessor_root,
+                    successor_root=raw_root,
+                    filing_root=succession_filing_root,
+                    as_of=pd.Timestamp(summary["as_of"]),
+                )
+                checks["succession_raw_evidence_reverified"] = all(
+                    summary.get(name) == reviewed[review_name]
+                    for name, review_name in (
+                        ("succession_review_hash", "review_hash"),
+                        ("succession_filing_sha256", "sec_filing_sha256"),
+                        ("succession_predecessor_ledger_hash", "predecessor_ledger_hash"),
+                        ("succession_filing_ledger_hash", "filing_ledger_hash"),
+                    )
+                )
     except (KeyError, TypeError, ValueError, OSError, json.JSONDecodeError) as exc:
         return {"status": "FAIL", "reason": "PROCESS_EVIDENCE_INVALID:" + type(exc).__name__}
     return {"status": "PASS" if all(checks.values()) else "FAIL", "checks": checks,
@@ -229,6 +283,8 @@ def run_validation(
     versions_path: Path | None = None,
     panel_path: Path | None = None,
     manual_expected: Path,
+    succession_predecessor_root: Path | None = None,
+    succession_filing_root: Path | None = None,
 ) -> dict[str, Any]:
     if output.exists() and any(output.iterdir()):
         raise FileExistsError("VALIDATION_OUTPUT_DIRECTORY_NOT_EMPTY")
@@ -237,6 +293,26 @@ def run_validation(
     versions = pd.read_parquet(versions_path)
     panel = pd.read_parquet(panel_path)
     fixture = validate_fixture_contracts(versions, panel)
+    reviewed_succession = None
+    supplemental_versions = None
+    if succession_predecessor_root is not None and succession_filing_root is not None:
+        reviewed_succession = verify_xom_successor_bridge(
+            predecessor_root=succession_predecessor_root,
+            successor_root=raw_root,
+            filing_root=succession_filing_root,
+            as_of=pd.Timestamp(json.loads(
+                (raw_root / "processed" / "process_summary.json").read_text(encoding="utf-8")
+            )["as_of"]),
+        )
+        supplemental_versions = build_xom_predecessor_manual_versions(
+            predecessor_root=succession_predecessor_root,
+            successor_root=raw_root,
+            filing_root=succession_filing_root,
+            mapping_path=Path(__file__).resolve().parents[1] / "mappings" / "canonical_fields.csv",
+            as_of=pd.Timestamp(json.loads(
+                (raw_root / "processed" / "process_summary.json").read_text(encoding="utf-8")
+            )["as_of"]),
+        )
     try:
         manual, manual_markdown = validate_manual_issuers(
             {
@@ -244,6 +320,8 @@ def run_validation(
                 "manual_expected": manual_expected,
                 "raw_manifest": raw_root / "download_ledger.jsonl",
                 "raw_root": raw_root,
+                "supplemental_fundamental_versions": supplemental_versions,
+                "supplemental_raw_root": succession_predecessor_root,
             },
             REQUIRED_MANUAL_CIKS,
         )
@@ -259,7 +337,7 @@ def run_validation(
             "# SEC Manual Issuer Validation\n\n"
             f"Status: **FAIL**\n\nRaw reconciliation failed: {exc}\n"
         )
-    manual_identity = _manual_identity_evidence(raw_root)
+    manual_identity = _manual_identity_evidence(raw_root, reviewed_succession)
     if not manual.empty and manual.status.eq("PASS").all() and manual_identity["status"] == "PASS":
         manual_status = "PASS"
     elif manual.status.eq("FAIL").any():
@@ -267,7 +345,7 @@ def run_validation(
     else:
         manual_status = "BLOCKED"
     raw = _raw_gate(raw_root, universe_csv)
-    processing = _process_gate(raw_root)
+    processing = _process_gate(raw_root, succession_predecessor_root, succession_filing_root)
     identity_path = raw_root / "processed" / "cik_security_map.csv"
     try:
         identity = pd.read_csv(identity_path, dtype=str)
@@ -329,6 +407,13 @@ def run_validation(
     markdown += f"{json.dumps(identity_gate, sort_keys=True)}\n"
     markdown += "\n## Frozen manual issuer identity\n\n"
     markdown += f"Status: **{manual_identity['status']}**; {manual_identity['reason']}\n\n"
+    for transition in manual_identity.get("reviewed_transitions", []):
+        markdown += (
+            f"- {transition['ticker']}: reviewed CIK transition "
+            f"{transition['predecessor_cik']} -> {transition['successor_cik']} "
+            f"effective {transition['effective_date']}; review hash "
+            f"`{transition['review_hash']}`\n"
+        )
     for transition in manual_identity["transitions"]:
         markdown += (
             f"- {transition['ticker']}: frozen CIK {transition['frozen_manual_cik']}, "
@@ -353,6 +438,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--versions", type=Path)
     parser.add_argument("--panel", type=Path)
+    parser.add_argument("--succession-predecessor-root", type=Path)
+    parser.add_argument("--succession-filing-root", type=Path)
     parser.add_argument(
         "--manual-expected",
         type=Path,
@@ -374,6 +461,8 @@ def main(argv: list[str] | None = None) -> int:
         versions_path=args.versions,
         panel_path=args.panel,
         manual_expected=args.manual_expected,
+        succession_predecessor_root=args.succession_predecessor_root,
+        succession_filing_root=args.succession_filing_root,
     )
     print(json.dumps(report, sort_keys=True, separators=(",", ":")))
     return 0 if report["validation_status"] == "PASS" else 2

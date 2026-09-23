@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "issuer_cik": "0000019617",
+      "ticker": "JPM",
+      "exchange": "NYSE",
+      "canonical_field": "shares_outstanding_sec",
+      "xbrl_namespace": "dei",
+      "xbrl_tag": "EntityCommonStockSharesOutstanding",
+      "unit": "shares",
+      "accession_number": "0001628280-26-008131",
+      "period_end": "2026-01-31",
+      "value": 2697032375,
+      "raw_source_hash": "be8a2a6aa0d1c4abd3fcadab51515ad1aafc5345b8b4d15994092e95876c2fb2",
+      "source_fact_id": "cf587f8d61f467283c38b70813635be87a8ce64a79a5b90846da2eceff46f695",
+      "filing_url": "https://www.sec.gov/Archives/edgar/data/19617/000162828026008131/jpm-20251231.htm",
+      "semantic_grade": "HYPOTHESIS_PROXY"
+    }
+  ]
+}

@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from test_sec_fundamentals import _base_identity, _write_release
+from test_sec_fundamentals import _base_identity, _base_panel, _write_release
 from us_equity_alpha.sec_field_mapping import SecFieldBinding
 from us_equity_alpha.sec_factor_inputs import binding_alias, load_sec_factor_inputs
 from us_equity_alpha.sec_fundamentals import SecFundamentalProvider
@@ -68,3 +68,25 @@ def test_loader_aligns_sparse_security_columns_with_missing_values(tmp_path):
     assert list(panels["sec__shares_outstanding_sec__INSTANT"].columns) == ["sec-a", "sec-entity"]
     assert pd.isna(panels["sec__shares_outstanding_sec__INSTANT"].loc["2025-01-02", "sec-a"])
     assert evidence["security_ids"] == ["sec-a", "sec-entity"]
+
+
+def test_strict_sales_omits_bank_proxy_but_proxy_sales_can_use_it(tmp_path):
+    panel = _base_panel()
+    panel.loc[panel.security_id.eq("sec-entity") & panel.canonical_field.eq("revenue"),
+              "semantic_grade"] = "HYPOTHESIS_PROXY"
+    provider = SecFundamentalProvider(_write_release(tmp_path / "bank", panel=panel))
+    strict, strict_evidence = load_sec_factor_inputs(
+        provider, [_binding()], "2025-01-02", "2025-01-03"
+    )
+    assert "sec-entity" not in strict["sec__revenue__TTM"].columns
+    assert strict_evidence["binding_tracks_by_alias"] == {"sec__revenue__TTM": "SEC_SOURCE_LINKED"}
+
+    proxy_binding = SecFieldBinding(
+        "sales", "revenue", "TTM", "HYPOTHESIS_PROXY", "AS_REPORTED",
+        "SEC_HYPOTHESIS_PROXY", "Reviewed bank net revenue proxy",
+    )
+    proxy, evidence = load_sec_factor_inputs(
+        provider, [proxy_binding], "2025-01-02", "2025-01-03"
+    )
+    assert proxy["sec__revenue__TTM"]["sec-entity"].tolist() == [20.0, 20.0]
+    assert evidence["binding_tracks_by_alias"] == {"sec__revenue__TTM": "SEC_HYPOTHESIS_PROXY"}

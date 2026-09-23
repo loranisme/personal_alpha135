@@ -80,6 +80,7 @@ def test_scale_cli_passes_completed_security_count_to_release(tmp_path, monkeypa
     process_summary.write_text(json.dumps({
         "canonical_mapping_hash": sha256_path(Path("data_pipelines/sec_edgar/mappings/canonical_fields.csv")),
         "derived_definitions_hash": sha256_path(Path("data_pipelines/sec_edgar/config/derived_fields.json")),
+        "reviewed_share_facts_hash": sha256_path(Path("data_pipelines/sec_edgar/config/reviewed_share_facts.json")),
         "raw_manifest_hash": sha256_path(raw_manifest),
         "resolved_universe_hash": sha256_path(raw_root / "resolved_universe_ciks.csv"),
         "output_hashes": {

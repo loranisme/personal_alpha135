@@ -46,6 +46,7 @@ def _inputs(tmp_path: Path):
         "manual_status": "PASS",
         "raw_status": "PASS",
         "identity_status": "PASS",
+        "processing_status": "PASS",
         "manual_identity": {"status": "PASS"},
         "versions_sha256": sha256_path(source / "fundamental_versions.parquet"),
         "panel_sha256": sha256_path(source / "daily_pit_fundamental_panel.parquet"),
@@ -96,8 +97,24 @@ def _scale_inputs(tmp_path: Path):
         "processed_security_count": 1,
         "processing_mapping_hash": "a" * 64,
         "processing_derived_hash": "b" * 64,
-        "process_summary_hash": "c" * 64,
+        "reviewed_share_facts_hash": "d" * 64,
     })
+    reviewed = inputs["raw_manifest"].parent / "reviewed_share_facts.json"
+    reviewed.write_text('{"schema_version":1,"reviews":[]}\n')
+    inputs["reviewed_share_facts"] = reviewed
+    inputs["reviewed_share_facts_hash"] = sha256_path(reviewed)
+    process_summary = inputs["raw_manifest"].parent / "process_summary.json"
+    process_summary.write_text(json.dumps({
+        "canonical_mapping_hash": inputs["processing_mapping_hash"],
+        "derived_definitions_hash": inputs["processing_derived_hash"],
+        "reviewed_share_facts_hash": inputs["reviewed_share_facts_hash"],
+        "succession_review_hash": None,
+        "succession_filing_sha256": None,
+        "succession_predecessor_ledger_hash": None,
+        "succession_filing_ledger_hash": None,
+    }))
+    inputs["process_summary"] = process_summary
+    inputs["process_summary_hash"] = sha256_path(process_summary)
     validation = json.loads(inputs["validation_report_json"].read_text())
     validation["universe_snapshot_sha256"] = sha256_path(inputs["universe_snapshot"])
     validation["identity_map_sha256"] = sha256_path(inputs["cik_security_map"])
@@ -212,6 +229,24 @@ def test_scale_release_rejects_self_attested_pass_when_raw_gate_failed(tmp_path)
     inputs["validation_report_json"].write_text(json.dumps(validation))
 
     with pytest.raises(ValueError, match="RELEASE_VALIDATION_STATUS_NOT_PASS"):
+        build_sec_release(inputs, tmp_path / "out", "abc123")
+
+
+def test_scale_release_rejects_processing_gate_failure(tmp_path):
+    inputs = _scale_inputs(tmp_path)
+    validation = json.loads(inputs["validation_report_json"].read_text())
+    validation["processing_status"] = "FAIL"
+    inputs["validation_report_json"].write_text(json.dumps(validation))
+    with pytest.raises(ValueError, match="RELEASE_VALIDATION_STATUS_NOT_PASS"):
+        build_sec_release(inputs, tmp_path / "out", "abc123")
+
+
+def test_scale_release_binds_succession_assertions_to_process_summary(tmp_path):
+    inputs = _scale_inputs(tmp_path)
+    inputs["succession_review_hash"] = "e" * 64
+    with pytest.raises(
+        ValueError, match="RELEASE_PROCESS_SUMMARY_EVIDENCE_MISMATCH:succession_review_hash"
+    ):
         build_sec_release(inputs, tmp_path / "out", "abc123")
 
 

@@ -236,6 +236,26 @@ def test_provider_returns_requested_field_basis_panel(sec_release_fixture: Path)
     assert provider.evidence_hashes["dataset_version"] == "SEC_PIT_FUNDAMENTALS_V1"
 
 
+def test_bank_proxy_revenue_requires_explicit_proxy_binding(tmp_path: Path):
+    panel = _base_panel()
+    panel.loc[panel.security_id.eq("sec-entity"), "semantic_grade"] = "HYPOTHESIS_PROXY"
+    manifest = _write_release(tmp_path / "mixed_revenue", panel=panel)
+    provider = SecFundamentalProvider(manifest)
+
+    strict = provider.load_panels([("revenue", "TTM")], "2025-01-02", "2025-01-03")[
+        "revenue__TTM"
+    ]
+    assert strict["sec-a"].tolist() == [10.0, 10.0]
+    assert "sec-entity" not in strict.columns
+
+    proxy = provider.load_panels(
+        [("revenue", "TTM")], "2025-01-02", "2025-01-03",
+        proxy_bindings=[("revenue", "TTM")],
+    )["revenue__TTM"]
+    assert proxy["sec-a"].tolist() == [10.0, 10.0]
+    assert proxy["sec-entity"].tolist() == [20.0, 20.0]
+
+
 def test_provider_preserves_complete_exchange_session_index(
     sec_release_fixture: Path,
 ) -> None:
@@ -287,6 +307,49 @@ def test_entity_only_identity_allows_entity_field_but_rejects_share_class_field(
     ):
         provider.load_panels(
             [("shares_outstanding_sec", "INSTANT")], "2025-01-01", "2025-01-31"
+        )
+
+
+def test_reviewed_entity_share_fact_is_proxy_only_and_exact(tmp_path: Path):
+    source_id = "a" * 64
+    panel = _base_panel()
+    is_share = panel.canonical_field.eq("shares_outstanding_sec")
+    panel.loc[is_share, "source_fact_id"] = source_id
+    panel.loc[is_share, "semantic_grade"] = "HYPOTHESIS_PROXY"
+    panel.loc[is_share, "unit"] = "shares"
+    identity = _base_identity()
+    identity["ticker"] = ["AAA", "JPM"]
+    identity["exchange"] = ["NYSE", "NYSE"]
+    manifest_path = _write_release(tmp_path / "release", panel=panel, identity=identity)
+    review = {"issuer_cik": "0000000002", "ticker": "JPM", "exchange": "NYSE",
+              "canonical_field": "shares_outstanding_sec", "semantic_grade": "HYPOTHESIS_PROXY",
+              "source_fact_id": source_id, "accession_number": "0001-25-000001", "value": 100}
+    review_path = manifest_path.parent / "reviewed_share_facts.json"
+    review_path.write_text(json.dumps({"schema_version": 1, "reviews": [review]}))
+    manifest = json.loads(manifest_path.read_text())
+    manifest["reviewed_share_facts_hash"] = _sha_file(review_path)
+    manifest["output_hashes"][review_path.name] = _sha_file(review_path)
+    manifest_path.write_text(json.dumps(manifest))
+    provider = SecFundamentalProvider(manifest_path)
+    strict = provider.load_panels(
+        [("shares_outstanding_sec", "INSTANT")], "2025-01-02", "2025-01-03"
+    )["shares_outstanding_sec__INSTANT"]
+    assert "sec-entity" not in strict.columns
+    proxy = provider.load_panels(
+        [("shares_outstanding_sec", "INSTANT")], "2025-01-02", "2025-01-03",
+        proxy_bindings=[("shares_outstanding_sec", "INSTANT")],
+    )["shares_outstanding_sec__INSTANT"]
+    assert proxy["sec-entity"].eq(100).all()
+    review["source_fact_id"] = "b" * 64
+    review_path.write_text(json.dumps({"schema_version": 1, "reviews": [review]}))
+    manifest["reviewed_share_facts_hash"] = _sha_file(review_path)
+    manifest["output_hashes"][review_path.name] = _sha_file(review_path)
+    manifest_path.write_text(json.dumps(manifest))
+    altered = SecFundamentalProvider(manifest_path)
+    with pytest.raises(ValueError, match="SEC_PANEL_IDENTITY_NOT_USABLE"):
+        altered.load_panels(
+            [("shares_outstanding_sec", "INSTANT")], "2025-01-02", "2025-01-03",
+            proxy_bindings=[("shares_outstanding_sec", "INSTANT")],
         )
 
 

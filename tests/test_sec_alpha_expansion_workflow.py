@@ -9,6 +9,7 @@ import pytest
 
 import us_equity_alpha.sec_alpha_expansion_workflow as workflow
 from us_equity_alpha.sec_alpha_expansion_workflow import run_sec_alpha_expansion
+from us_equity_alpha.sec_field_mapping import SecFieldBinding
 
 
 def _paths(tmp_path: Path) -> dict:
@@ -137,3 +138,42 @@ def test_source_index_retains_proxy_and_verification_blockers():
     result = workflow._relationship_index(v4, demand, strict, proxy, [], pd.DataFrame(), verified)
     assert result.iloc[0].expansion_status == "DEFERRED"
     assert result.iloc[0].blocking_reasons == "NO_VALID_CROSS_SECTIONAL_OBSERVATIONS"
+
+
+def test_compiled_strict_and_proxy_candidates_load_separate_sales_panels(monkeypatch):
+    sales = SecFieldBinding(
+        brain_field="sales", canonical_field="revenue", required_basis="ANNUAL",
+        semantic_grade="SOURCE_LINKED_DIRECT", direction_or_sign_rule="AS_REPORTED",
+        allowed_track="SEC_SOURCE_LINKED", mapping_evidence="reviewed",
+    )
+    candidates = [
+        {"local_factor_id": "strict", "provenance_kind": "SEC_SOURCE_LINKED",
+         "field_bindings": {"sec__revenue__ANNUAL": "revenue/ANNUAL"}},
+        {"local_factor_id": "proxy", "provenance_kind": "SEC_HYPOTHESIS_PROXY",
+         "field_bindings": {"sec__revenue__ANNUAL": "revenue/ANNUAL"}},
+    ]
+    calls = []
+
+    def fake_load(_provider, selected, _start, _end):
+        assert len(selected) == 1
+        track = selected[0].allowed_track
+        calls.append(track)
+        return {"sec__revenue__ANNUAL": pd.DataFrame({"JPM": [
+            float("nan") if track == "SEC_SOURCE_LINKED" else 182447000000.0
+        ]})}, {"binding_tracks_by_alias": {"sec__revenue__ANNUAL": track}}
+
+    def fake_verify(candidate, panels, evidence):
+        track = candidate["provenance_kind"]
+        assert evidence["binding_tracks_by_alias"]["sec__revenue__ANNUAL"] == track
+        value = panels["sec__revenue__ANNUAL"].loc[0, "JPM"]
+        assert (pd.isna(value) if track == "SEC_SOURCE_LINKED" else value == 182447000000.0)
+        return {**candidate, "build_status": "COMPUTE_VERIFIED"}, panels["sec__revenue__ANNUAL"]
+
+    monkeypatch.setattr(workflow, "load_sec_factor_inputs", fake_load)
+    monkeypatch.setattr(workflow, "verify_sec_factor", fake_verify)
+    records, values = workflow._verify_compiled_by_track(
+        candidates, {"sales": sales}, object(), "2026-09-15", "2026-09-22"
+    )
+    assert calls == ["SEC_SOURCE_LINKED", "SEC_HYPOTHESIS_PROXY"]
+    assert [record["local_factor_id"] for record in records] == ["strict", "proxy"]
+    assert set(values) == {"strict", "proxy"}

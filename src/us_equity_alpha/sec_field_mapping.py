@@ -79,7 +79,7 @@ def load_sec_field_bindings(path: Path | str, sec_field_catalog: pd.DataFrame) -
             ):
                 raise ValueError("SEC_BINDING_SIGN_MISMATCH:" + binding.brain_field)
         if (binding.brain_field in _PROXY_ONLY or binding.canonical_field in _PROXY_ONLY or
-                binding.semantic_grade == "HYPOTHESIS_PROXY" or "HYPOTHESIS_PROXY" in grades):
+                binding.semantic_grade == "HYPOTHESIS_PROXY" or grades == {"HYPOTHESIS_PROXY"}):
             if binding.allowed_track != "SEC_HYPOTHESIS_PROXY":
                 raise ValueError("SEC_BINDING_PROXY_ONLY:" + binding.brain_field)
         result[binding.brain_field] = binding
