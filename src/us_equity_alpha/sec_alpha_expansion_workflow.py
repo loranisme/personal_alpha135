@@ -245,6 +245,7 @@ def run_sec_alpha_expansion(
     registry = _json(paths["registry"])
     fields = _json(paths["brain_field_catalog"])
     sources = _source_rows(registry)
+    normalized_registry = {"records": list(sources.values())}
     demand = audit_fundamental_deferred_sources(registry, v4_index, fields, bindings)
     evidence = dict(provider.evidence_hashes)
     # The release is a current-universe development snapshot. Entity-level
@@ -255,7 +256,7 @@ def run_sec_alpha_expansion(
     enriched["sec_evidence_hashes"] = [evidence for _ in range(len(enriched))]
     operators = set(FUNCTIONS) | {"add", "subtract", "multiply", "divide", "power"}
     strict_candidates, strict_ledger = build_sec_source_linked_candidates(
-        registry, enriched, bindings, operators)
+        normalized_registry, enriched, bindings, operators)
     proxy_candidates = []
     proxy_ledger = []
     for row in enriched.to_dict("records"):
