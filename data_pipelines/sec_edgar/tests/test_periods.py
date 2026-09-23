@@ -82,6 +82,39 @@ def test_ttm_requires_four_visible_discrete_quarters():
     assert ttm.iloc[0].value == 60.0
 
 
+def test_proxy_annual_value_is_available_as_ttm_when_quarters_are_missing():
+    row = _cumulative_rows().query("fiscal_period == 'FY'").copy()
+    row["semantic_grade"] = "HYPOTHESIS_PROXY"
+
+    result = materialize_period_bases(row)
+
+    fallback = result.query("reported_basis == 'TTM'")
+    assert len(fallback) == 1
+    assert fallback.iloc[0].value == 60.0
+    assert fallback.iloc[0].source_fact_id == "annual-ttm-proxy:fy"
+    assert fallback.iloc[0].derivation_rule == "COPY_COMPLETE_FISCAL_YEAR_AS_TTM_PROXY"
+
+
+def test_source_linked_annual_value_is_not_promoted_to_ttm():
+    row = _cumulative_rows().query("fiscal_period == 'FY'").copy()
+    row["semantic_grade"] = "SOURCE_LINKED_DIRECT"
+
+    result = materialize_period_bases(row)
+
+    assert result.query("reported_basis == 'TTM'").empty
+
+
+def test_four_quarter_ttm_suppresses_proxy_annual_fallback_for_same_period():
+    rows = _cumulative_rows()
+    rows["semantic_grade"] = "HYPOTHESIS_PROXY"
+
+    result = materialize_period_bases(rows)
+
+    ttm = result.query("reported_basis == 'TTM'")
+    assert len(ttm) == 1
+    assert ttm.iloc[0].derivation_rule == "SUM_LATEST_FOUR_DISCRETE_QUARTERS"
+
+
 def test_derived_quarter_metadata_uses_the_actual_discrete_window():
     result = materialize_period_bases(_cumulative_rows())
     discrete = (

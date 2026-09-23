@@ -215,6 +215,51 @@ def _materialize_ttm(discrete: pd.DataFrame) -> list[dict[str, Any]]:
     return output
 
 
+def _materialize_proxy_annual_ttm_fallbacks(
+    duration: pd.DataFrame, ttm_rows: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """Expose a complete fiscal year as a stale TTM proxy when quarters are absent.
+
+    A complete annual flow is exactly twelve months at its period end.  This
+    fallback is deliberately limited to fields already graded
+    ``HYPOTHESIS_PROXY``; source-linked bindings must continue to require four
+    discrete quarters.  When a four-quarter TTM exists for the same source
+    series and period end, the more specific derivation wins and no fallback is
+    emitted.
+    """
+
+    if duration.empty or "semantic_grade" not in duration:
+        return []
+    group_keys = [
+        "issuer_cik", "security_id", "canonical_field", "unit",
+        "xbrl_namespace", "xbrl_tag",
+    ]
+    materialized = {
+        tuple(str(row.get(key)) for key in group_keys) + (str(row.get("period_end")),)
+        for row in ttm_rows
+    }
+    output: list[dict[str, Any]] = []
+    for source in duration.to_dict("records"):
+        if source.get("semantic_grade") != "HYPOTHESIS_PROXY" or _label(source) != "FY":
+            continue
+        identity = tuple(str(source.get(key)) for key in group_keys) + (
+            str(source.get("period_end")),
+        )
+        if identity in materialized:
+            continue
+        row = dict(source)
+        source_id = str(source["source_fact_id"])
+        row.update({
+            "fiscal_period": "TTM",
+            "reported_basis": "TTM",
+            "source_fact_id": "annual-ttm-proxy:" + source_id,
+            "input_source_fact_ids": json.dumps([source_id]),
+            "derivation_rule": "COPY_COMPLETE_FISCAL_YEAR_AS_TTM_PROXY",
+        })
+        output.append(row)
+    return output
+
+
 def materialize_period_bases(mapped_versions: pd.DataFrame) -> pd.DataFrame:
     if mapped_versions.empty:
         return mapped_versions.copy()
@@ -248,7 +293,9 @@ def materialize_period_bases(mapped_versions: pd.DataFrame) -> pd.DataFrame:
     for _, group in duration.groupby(group_keys, dropna=False, sort=False):
         discrete_rows.extend(_materialize_discrete(group))
     generated.extend(discrete_rows)
-    generated.extend(_materialize_ttm(pd.DataFrame(discrete_rows)))
+    ttm_rows = _materialize_ttm(pd.DataFrame(discrete_rows))
+    generated.extend(ttm_rows)
+    generated.extend(_materialize_proxy_annual_ttm_fallbacks(duration, ttm_rows))
     result = pd.concat([raw, pd.DataFrame(generated)], ignore_index=True, sort=False)
     return result.sort_values(
         ["issuer_cik", "security_id", "canonical_field", "historical_available_at", "reported_basis", "source_fact_id"],
