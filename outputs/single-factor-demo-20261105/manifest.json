@@ -1,0 +1,74 @@
+{
+  "file_count": 17,
+  "files": {
+    "alphalens/decile_5d_returns.csv": {
+      "bytes": 85757,
+      "sha256": "90a51500eecb4b203b602560bac5b6fa5e47d1c7d0f51aa223d4db7b8463ba19"
+    },
+    "alphalens/factor_rank_autocorrelation.csv": {
+      "bytes": 65636,
+      "sha256": "82771372be86f19a15588be32ec391df703b95ffd7d407b55fb94b8227542063"
+    },
+    "alphalens/ic_by_date.csv": {
+      "bytes": 16151,
+      "sha256": "295891e07bee10a5b61e4e779a0f656d3353a7fbc66e5388e7847f733f706f18"
+    },
+    "alphalens/mean_return_by_quantile.csv": {
+      "bytes": 137,
+      "sha256": "2c029d05d2b1b6da493e6dc99b149143b7ad2031f8ce8b967d5a52eb844dbfad"
+    },
+    "alphalens/quantile_turnover.csv": {
+      "bytes": 75390,
+      "sha256": "fdc39e138f315796b8eba5f21fa179b9e804dd381e314b03be0d2eb7d54f54d8"
+    },
+    "alphalens/summary.json": {
+      "bytes": 282,
+      "sha256": "00c9bb6143a7202b902efd4cacf30938758761dca1e56a1a1a6e524fa396ba43"
+    },
+    "performance_report.md": {
+      "bytes": 767,
+      "sha256": "ef2b8a9a0b4cd45cb8c4518def95b983c073e1ba46886103cf4fdee7aaa34991"
+    },
+    "performance_report.png": {
+      "bytes": 784530,
+      "sha256": "57a5765cd21cc61a670059955f23a27efa896e75a88fa96438dee63747245b7d"
+    },
+    "run_demo.py": {
+      "bytes": 14124,
+      "sha256": "2161b5bed710bd1f9efb5f98d6a3165874fa7d2754bc1d909751c49c2036b057"
+    },
+    "run_summary.json": {
+      "bytes": 3325,
+      "sha256": "f00aef12676f2eb6a97b68c1d6f3b8e32e38bc646b37c7d2840ffe0286c7f59e"
+    },
+    "stock_ranking.csv": {
+      "bytes": 32858,
+      "sha256": "21d540a12b5e63310e5fe92ebd289e6d3f93c826b6e946bcf7e51e3ebfe013f9"
+    },
+    "target_portfolio.csv": {
+      "bytes": 5950,
+      "sha256": "8c502f53faef19370cd966012da817f25d4801145acba2bcf3f86b07992b3bc1"
+    },
+    "vectorbt/annual_returns.csv": {
+      "bytes": 533,
+      "sha256": "46734ea58a91031466c0ceae51df7b238528ca208d2d57d559db9e796b2a3ccb"
+    },
+    "vectorbt/nav_and_benchmarks.csv": {
+      "bytes": 169434,
+      "sha256": "14c2b488f94081df727c8531319a091efc9fe4f04a3d59845ed290231caf406e"
+    },
+    "vectorbt/orders.csv": {
+      "bytes": 5592945,
+      "sha256": "f3ae199b3934e6fac86cdb36191a8fc7c7a5f049073f8e9ba7a8b17145f19f74"
+    },
+    "vectorbt/summary.json": {
+      "bytes": 525,
+      "sha256": "5cc77a402cff1b83440195add94d0671c21c1a19ecf1cee88ae9012bbd239925"
+    },
+    "单因子样例报告.md": {
+      "bytes": 2515,
+      "sha256": "da9f1c6e0ca6155690a4424b972589bb28e744f9a4b32903a74d59c56afc8353"
+    }
+  },
+  "manifest_self_hash_excluded": true
+}

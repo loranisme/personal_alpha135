@@ -1,0 +1,11 @@
+{
+  "engine": "alphalens-reloaded",
+  "engine_version": "0.4.6",
+  "evidence_kind": "DEVELOPMENT_EXPOSED_DIAGNOSTIC",
+  "horizon_sessions": 5,
+  "mean_rank_ic": 0.011493201822565037,
+  "observations": 171954,
+  "quantiles": 5,
+  "raw_icir": 0.06386573180867441,
+  "sessions": 348
+}

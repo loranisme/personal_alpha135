@@ -1,0 +1,17 @@
+{
+  "cagr": 0.12503637337896367,
+  "end": "2026-09-14",
+  "engine": "vectorbt",
+  "engine_version": "1.0.0",
+  "fee_rate_one_way": 0.001,
+  "fill_model": "IDEALIZED_NEXT_SESSION_OPEN_TARGET_PERCENT",
+  "max_drawdown": -0.4288707673203417,
+  "modeled_fees": 92405.63020432206,
+  "order_count": 32141,
+  "sharpe_zero_rate": 0.5649447265910129,
+  "slippage": 0.0,
+  "spy_total_return": 1.604569061756473,
+  "start": "2020-01-06",
+  "total_return": 1.1990298093279037,
+  "universe_equal_weight_total_return": 2.030949050485111
+}

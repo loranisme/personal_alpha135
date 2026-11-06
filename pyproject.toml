@@ -9,6 +9,7 @@ requires-python = ">=3.12,<3.13"
 dependencies = [
   "alphalens-reloaded",
   "exchange-calendars",
+  "matplotlib",
   "numpy",
   "openpyxl",
   "pandas",
@@ -24,6 +25,7 @@ test = ["pytest"]
 
 [project.scripts]
 us-equity-alpha = "us_equity_alpha.cli:main"
+alpha-performance-report = "us_equity_alpha.performance_visual:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
