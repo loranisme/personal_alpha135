@@ -1,101 +1,69 @@
-# US Equity Alpha — V4 local factor workflow（on construction)
+# Personal Alpha 135
 
-> **Current canonical artifact (2026-09-15):**
-> `private/project_factor_library/reconstruction-v4/`. It records 886 BRAIN
-> sources, reconstructs 317 source associations into 135 unique local formulas,
-> and verifies all 135 formulas on saved engineering samples. The other 569
-> sources remain explicitly deferred. Every formula remains `DIAGNOSTIC_ONLY`;
-> no research or trading release has been activated.
+把 WorldQuant BRAIN 中 Alpha 的经济假设整理为个人美股因子库，并用本地数据计算、检查和展示单因子表现。项目的核心是**可持续扩充的因子库**；选股与回测是检验和使用因子的轻量流程，最终交易由人决定。
 
-当前设计以 BRAIN 的经济假设为来源，使用已有 Alpaca / Tiingo 能力构造项目自己的直接因子与 Proxy Alpha。主方案见 [原工程设计方案](../2026-09-06-us-equity-alpha-implementation-plan.md)，重点为第 6.3–6.8 节、T2b 和 QA37–48。
+> **当前状态（2026-11）**：V4 基础库有 135 个去重后的 `COMPUTE_VERIFIED` 本地公式，但全部仍是 `DIAGNOSTIC_ONLY`。历史样本可运行因子诊断、筛选和选股演示；尚未取得正式策略发布所需的 PIT 股票池、独立前瞻证据和完整执行成本验证。基本面扩库路线已冻结，当前可用基线仍是这 135 个公式。
 
-下一阶段采用轻量个人选股路线：V4 基础库保持不可覆盖，新增结构化 Alpha Catalog、明确标为 `DIAGNOSTIC_ONLY` 的精简历史指标视图、人工审核的 Active Pool、当前500–1000只流动性美股池、配置驱动的每日排名、目标持仓和前瞻 Paper 记录。同机制入选只提示 warning；手动调仓是可选 execution helper。ML 扩展不在本阶段实施。参见 [V5 Lite 设计](docs/superpowers/specs/2026-09-15-v5-lite-alpha-selection-design.md) 与 [V5 Lite 实施计划](docs/superpowers/plans/2026-09-15-v5-lite-alpha-selection.md)。
+![项目工作流](docs/us-equity-alpha-workflow-v1.png)
 
-V5 Lite 操作顺序如下。所有路径均为示例运行目录；凭证只通过环境变量传入下载脚本：
+## 从来源到选股的流程
 
-```bash
-us-equity-alpha build-alpha-catalog --library private/project_factor_library/reconstruction-v4/project_factor_library.json --manifest private/project_factor_library/reconstruction-v4/manifest.json --policy config/alpha_catalog_policy.json --output runs/catalog
-us-equity-alpha build-active-pool-review --catalog runs/catalog/alpha_catalog_review.csv --coverage inputs/factor_coverage.csv --policy config/active_pool_policy.json --output runs/active_pool_review.xlsx
-# 人工在 Decision Template 中填写 INCLUDE/WATCHLIST/REJECT 与 comment 后：
-us-equity-alpha freeze-active-pool --review runs/active_pool_review.xlsx --library private/project_factor_library/reconstruction-v4/project_factor_library.json --manifest-sha256 "$(shasum -a 256 private/project_factor_library/reconstruction-v4/manifest.json | awk '{print $1}')" --policy config/active_pool_policy.json --output runs/active_pool.json
-us-equity-alpha build-current-universe --assets inputs/assets.csv --bars inputs/bars --policy config/current_universe_policy.json --as-of 2026-09-15T21:00:00+08:00 --output runs/current_universe
-us-equity-alpha daily-select --library private/project_factor_library/reconstruction-v4/project_factor_library.json --active-pool runs/active_pool.json --universe runs/current_universe/eligible_universe.csv --market-data inputs/panels --policy config/personal_selection_policy.json --as-of 2026-09-15T00:00:00Z --output runs/selection --paper-log runs/forward_paper.sqlite
-```
+| 阶段 | 输入与处理 | 输出 |
+|---|---|---|
+| 1. BRAIN 来源登记 | 保存原始表达式、设置、字段、来源 ID 与经济假设 | 可追溯的 Source Registry；886 个来源已审查 |
+| 2. 本地重建 | 按可获得的数据字段重建直接公式或明确标注的假设代理；保留原始定义与信息损失 | 317 个来源关联到 135 个去重本地公式；569 个来源暂缓 |
+| 3. 计算验证 | 统一字段适配、确定性计算、前缀不变性与哈希校验 | V4 因子库；`COMPUTE_VERIFIED` 表示能计算，不表示有预测能力 |
+| 4. 按需筛选 | 仅在重新审查 Active Pool 时运行 V5.1 Lite Filter；使用固定的周度信号、5 日标签和预设 Gate | 因子诊断、冗余提示和待人工审查的候选池 |
+| 5. 个人选股 | 对已选因子做横截面排名、等权合成；按当前流动性股票池生成排名 | Top 10% 等权目标持仓；手工调仓草稿是可选辅助，不会自动下单 |
+| 6. 绩效展示 | 对**本次请求的单个 Alpha**运行 Alphalens、vectorbt 及图表输出 | 分组曲线、RankIC、组合净值、基准、排名及可核对的 CSV/JSON |
+| 7. 前瞻记录 | 冻结候选与配置后记录实际后续信号和结果 | Forward Paper 的设计与组件；尚未形成正式前瞻通过结论 |
 
-`daily-select` 每个交易日都生成股票排名；只有配置规定的 `WEEKLY_FIRST_SESSION` 才生成目标持仓。只有需要把该目标权重换算为手工买卖股数时，才追加 `--execution-helper --positions ... --account ... --reference-prices ...`。该 helper 只生成 `REVIEW_REQUIRED` 草稿，不创建或发送券商订单。ML 扩展和历史 PIT 认证不属于 V5 Lite。
+V5.1 的主标签固定为 `t close 冻结信号 → t+1 open 进入 → t+6 open 退出`。单因子图表只展示**该次运行实际算出的指标**；不会为了填满图表补造其他预测期限或成本情景。详见 [V5.1 Lite 使用说明](docs/implementation/2026-09-16-v5-1-library-first-usage.md) 和 [可视化输出设计](docs/superpowers/specs/2026-11-05-alpha-performance-visual-output-design.md)。
 
-![US Equity Alpha 工作流](docs/us-equity-alpha-workflow-v1.png)
+## 单因子图表 Demo
 
-## 实际实现状态
+下图是一次保存的工程样例：本地公式 `rank(-(close / open - 1))`，500 只**当前快照**美股，保存的 Yahoo 调整后历史数据，组合回测从 2020-01-06 至 2026-09-14。上排是 G1–G10 的 5 日前瞻收益链接曲线，中排是 5D RankIC，下排是含 10 bp 单边费用的 Top 10% 组合及两个基准。
 
-- BRAIN 当前同步范围：886 个唯一 Alpha ID，885 个表达式可安全解析；历史全部搜索尝试仍未证实完整。
-- 依赖映射：203 项（含 settings 分类依赖）；8 个直接候选、25 个派生/代理候选、109 个专门数据需求、61 个未知。字段分类不等于已经实现 Proxy。
-- T2b 已为 886 个来源生成假设卡片和逐项决策；T2c 增加设置级中性化、PIT 分类输入及 Tiingo Fundamentals 当前分类适配器。
-- V4 保留 317 个可重建来源与 135 个去重公式；全部 135 个公式已完成工程样本计算验证，569 个来源继续 `DEFERRED`。
-- 原 93 个仅缺中性化来源已全部通过 220 会话、8 标的合成工程回放；该结果只证明代码可计算，不能代替真实分类数据或研究验证。
-- 真实数据仍缺 65 个 SUBINDUSTRY、26 个 INDUSTRY、1 个 SECTOR 来源所需的分类标签；Tiingo EOD 和 Alpaca 股票行情均不提供这些标签。
-- BRAIN 数值等价认证为 0；历史 PIT/真实完整股票池未验证；工程可计算不代表研究或实盘准入。
-- 所有 135 个候选均为 `DIAGNOSTIC_ONLY`，没有自动进入冻结 release；转换过程未读取或继承 BRAIN Sharpe、Fitness、收益等绩效标签。
+![单因子绩效报告样例：分组、RankIC 与组合净值](outputs/single-factor-demo-20261105/performance_report.png)
 
-[T2c 中性化报告](../2026-09-08-t2c-neutralization-implementation.md) · [T2b 实施报告](../2026-09-08-t2b-proxy-factor-library.md) · [首批迁移证据](../2026-09-07-batch-alpha-migration.md) · [双数据源验证](../2026-09-07-dual-provider-validation.md) · [T0–T3 实施任务](docs/phase1-implementation.md)
+[打开图表说明](outputs/single-factor-demo-20261105/performance_report.md) · [股票排名](outputs/single-factor-demo-20261105/stock_ranking.csv) · [目标持仓](outputs/single-factor-demo-20261105/target_portfolio.csv) · [Alphalens 诊断](outputs/single-factor-demo-20261105/alphalens/summary.json) · [vectorbt 回测](outputs/single-factor-demo-20261105/vectorbt/summary.json) · [运行证据与限制](outputs/single-factor-demo-20261105/run_summary.json)
 
-## 转换设计与数据边界
+**读图边界**：分组曲线是周度信号的 5D 标签逐期链接，短交易周可能重叠，不能视为可执行的十组组合。该股票池用当前名单倒推历史，存在存活偏差；2019–2026 数据已用于开发，2025 年后的展示也不是独立 OOS。开盘成交、10 bp 费用及零滑点是简化假设。样例展示工作流与输出格式，不是因子有效性证明或交易建议。
+
+以后每次给出单个 Alpha performance 时，使用同一[报告生成器](src/us_equity_alpha/performance_visual.py)在该次运行目录产出 `performance_report.png` 和 `performance_report.md`；原始 Alphalens/vectorbt 数据仍可逐项审查。生成器仅对符合[输入合同](docs/superpowers/specs/2026-11-05-alpha-performance-visual-output-design.md)的运行作图，缺少逐期分组收益时会标 `PARTIAL`，不会由分组均值伪造曲线。
+
+## 当前证据与冻结边界
+
+- **基础库**：V4 的 135 个公式及来源血缘由 SHA-256 锁定；[V4 验收说明](docs/implementation/2026-09-14-reconstruction-v4-final.md)和[冻结文件](config/alpha_library_freeze_v1.json)记录具体口径。原始 BRAIN 数据、个人公式库和行情样本保存在 Git 忽略的 `private/` 下，不随公开仓库分发。
+- **历史筛选**：500 股 Yahoo 样本上的 V5.1 全历史运行曾形成 14 因子候选；只用 2019–2024 数据重新筛选得到 15 因子 `PRE2025_POOL`，再对 2025–2026 做一次历史回放。由于后段此前已暴露，该回放明确是 `RETROSPECTIVE_HOLDOUT_REPLAY`，不是独立 OOS，也没有改变冻结 Gate。[回放报告](outputs/v5-1-pre2025-holdout-replay-20260917/HISTORICAL_HOLDOUT_REPLAY_REPORT.md)
+- **基本面扩库**：SEC PIT 数据管线及严格来源／假设代理双轨仍作为后续路线；最近一次扩充诊断没有新增经过计算验证的唯一公式，不能把财报字段覆盖等同于因子已纳入库。[暂停与恢复边界](docs/project-freezes/2026-09-23-alpha-library-and-fundamental-expansion-freeze.md)
+- **执行**：排名与目标持仓供人工审核；可选手动调仓 helper 不提交订单。正式模拟盘或实盘仍需 PIT 股票池、公司行动、真实成本与前瞻证据等门禁。
+
+## 仓库结构与本地使用
 
 ```text
-原始 BRAIN 库 + 已验证数据能力
-  → 假设卡片 → 直接/Proxy/暂缓决策 → 有限模板 → 工程验证
-  → 去重后的项目候选因子库 → 原 T3–T8 工作流
+src/us_equity_alpha/       因子解析、数据适配、筛选、选股、回测与报告代码
+data_pipelines/sec_edgar/ 独立的 SEC 基本面 PIT 数据管线
+config/                    冻结策略与因子库口径
+docs/                      设计、实施说明和证据边界
+outputs/                   可公开审查的样例图表与历史诊断报告
+tests/                     工程验证
+private/                   本地来源库、行情和运行证据；Git 忽略
 ```
 
-原始公式与 settings 永久保留；目标 Proxy 使用新本地定义，明确机制、信息损失、暴露、设置和来源血缘。多个原 ID 可归并为同一本地因子。不为提高数量硬凑代理，不继承平台 Sharpe/Fitness，不自动进入冻结 release。组合、Alphalens/vectorbt、signal/execution 输出及手动交易边界不变。
-
-当前真实样本证明了两源 OHLCV 的局部可计算性；其他衍生能力、VWAP/公司行动处理、历史基本面和分类按能力目录逐项审核。Tiingo Fundamentals、SEC 或其他数据源不是已完成接入的能力。转换器设计不会放宽原 T4–T8 对 PIT、行业约束和执行报价的要求。
-
-当前运行配置已指向 V4 诊断候选库。Tiingo Fundamentals `/meta` 可提供当前 sector/industry，并可用 SIC code 构造显式 subindustry proxy；接口没有历史分类序列，因此当前数据只能支持当日 live proxy，不能用于历史防过拟合验证。该配置不构成研究准入或实盘发布。
-
-## Canonical local artifacts
-
-- `private/project_factor_library/CURRENT_LOCAL_ALPHA_LIBRARY.json`：唯一当前库指针。
-- `private/project_factor_library/reconstruction-v4/`：V4 定义、血缘、决策、验证矩阵与 manifest。
-- `private/runs/expanded-500-2020-2025-v1/`：当前 50 证券加 SPY 的 2019-10 至 2025-12 工程输入。
-- `private/runs/v4-three-alpha-workflow-sample-20260914-v1/`：Alphalens、vectorbt、排名、目标持仓、调仓清单和证据账本样例。
-- `scripts/run_v4_three_alpha_workflow_sample.py`：当前完整样例入口。
-- `scripts/build_v4_sample_workbooks.mjs`：当前审核工作簿生成器。
-
-旧版本仅保留转换报告、manifest、逐来源决策等审计元数据；其可由保存输入重新生成的 `factor_values/` 已在 2026-09-15 清理。清理范围与保留原因见 [V4 清理清单](docs/implementation/2026-09-15-v4-cleanup-manifest.md)。
-
-## Commands
-
-Create the environment from `dependency-lock.txt`, then install the local wheel
-without build isolation so pip uses the already locked build dependency:
+项目使用 Python 3.12。取得依赖后可运行测试；样例的**重新计算**还需要仓库未分发的本地数据快照。
 
 ```bash
-.venv/bin/python -m pip install --no-build-isolation --no-deps .
+python3.12 -m venv .venv
+.venv/bin/python -m pip install -r dependency-lock.txt
+.venv/bin/python -m pip install --no-build-isolation --no-deps -e .
+.venv/bin/python -m pytest -q --ignore=tests/test_history_verification.py
 ```
 
-Run the installed CLI directly:
+对符合单因子输出合同的运行目录，可单独重画最终报告：
 
 ```bash
-.venv/bin/us-equity-alpha environment-check \
-  --output runs/environment/environment_check.json
-
-.venv/bin/us-equity-alpha login-brain \
-  --session-file private/brain_session.json
-
-.venv/bin/us-equity-alpha sync-brain \
-  --session-file private/brain_session.json \
-  --output private/runs/brain-sync
-
-.venv/bin/us-equity-alpha map-library \
-  --registry private/runs/t1-live-import/alpha_registry.json \
-  --field-catalog private/local_snapshots/wq_usa_top3000_delay1_data_fields.json \
-  --output private/runs/t2-live-mapping
-
-.venv/bin/us-equity-alpha fetch-tiingo-classifications \
-  --output private/runs/tiingo-classifications-current
-
-PYTHONPATH=src .venv/bin/python -m pytest -q
+.venv/bin/alpha-performance-report --run-dir path/to/one-alpha-run
 ```
 
-Credentials, account data, Alpha IDs, formulas, raw pages, and generated
-registries remain under ignored `private/` or `runs/` paths.
+凭证仅在本机输入或通过运行时环境提供，不应写入脚本、README、运行报告或 Git 历史。
